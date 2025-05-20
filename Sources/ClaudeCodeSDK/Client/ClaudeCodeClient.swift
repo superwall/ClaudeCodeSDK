@@ -38,6 +38,7 @@ public class ClaudeCodeClient: ClaudeCode {
     }
     
     var env = ProcessInfo.processInfo.environment
+    // TODO: Make this configurable
     if let currentPath = env["PATH"] {
       env["PATH"] = "\(currentPath):/usr/local/bin:/opt/homebrew/bin:/usr/bin"
     } else {
