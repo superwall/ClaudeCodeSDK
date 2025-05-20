@@ -1,0 +1,15 @@
+{
+  "originHash" : "55e965c4d46d5b4db9ef530233a96e366669b7d4661634c3db4a9afe66058dae",
+  "pins" : [
+    {
+      "identity" : "swiftanthropic",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jamesrochabrun/SwiftAnthropic",
+      "state" : {
+        "revision" : "94e3bea082d8290c82272fcbb94072687029d443",
+        "version" : "2.1.4"
+      }
+    }
+  ],
+  "version" : 3
+}
