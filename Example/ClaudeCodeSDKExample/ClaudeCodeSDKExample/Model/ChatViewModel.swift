@@ -100,7 +100,7 @@ public class ChatViewModel {
   
   private func startNewConversation(prompt: String, messageId: UUID) async throws {
     var options = ClaudeCodeOptions()
-    options.allowedTools = ["Edit","Read","Bash","List"]
+    options.allowedTools = ["Bash","LS"]
     options.verbose = true
     
     let result = try await claudeClient.runSinglePrompt(
