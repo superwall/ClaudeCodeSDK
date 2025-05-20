@@ -4,7 +4,6 @@
 //
 //  Created by James Rochabrun on 5/20/25.
 //
-
 @preconcurrency import Combine
 import Foundation
 import os.log
@@ -39,6 +38,7 @@ public class ClaudeCodeClient: ClaudeCode {
     }
     
     var env = ProcessInfo.processInfo.environment
+    // TODO: Make this configurable
     if let currentPath = env["PATH"] {
       env["PATH"] = "\(currentPath):/usr/local/bin:/opt/homebrew/bin:/usr/bin"
     } else {
@@ -517,19 +517,30 @@ public class ClaudeCodeClient: ClaudeCode {
         )
         
       case "user":
-        let userMessage = try decoder.decode(Message.self, from: lineData)
+        let userMessage = try decoder.decode(UserMessage.self, from: lineData)
         logger?.debug("Received user message for session: \(userMessage.sessionId)")
         subject.send(.user(userMessage))
         
       case "assistant":
-        let assistantMessage = try decoder.decode(Message.self, from: lineData)
+        let assistantMessage = try decoder.decode(AssistantMessage.self, from: lineData)
         logger?.debug("STREAMING CHUNK RECEIVED")
         
-        // Extract text content using pattern matching
+        // Process the content array directly
         for content in assistantMessage.message.content {
-          if case let .text(textContent, _) = content {
+          switch content {
+          case .text(let textContent, _):
             logger?.debug("CHUNK CONTENT: \(textContent)")
             logger?.debug("CONTENT LENGTH: \(textContent.count)")
+          case .toolUse(let toolUse):
+            logger?.debug("TOOL USE: \(toolUse.name)")
+          case .toolResult(let toolResult):
+            logger?.debug("TOOL RESULT: \(toolResult.content), Error: \(toolResult.isError ?? false)")
+          case .thinking(let thinking):
+            logger?.debug("THINKING: \(thinking.thinking.prefix(50))...")
+          case .serverToolUse(let serverToolUse):
+            logger?.debug("SERVER TOOL USE: \(serverToolUse.name)")
+          case .webSearchToolResult(let searchResult):
+            logger?.debug("WEB SEARCH RESULT: \(searchResult.content.count) results")
           }
         }
         

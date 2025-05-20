@@ -1,6 +1,6 @@
 # ClaudeCodeSDK
 
-A Swift SDK for seamlessly integrating Claude Code into your iOS and macOS applications. Interact with Anthropic's Claude Code programmatically for AI-powered coding assistance.
+[Beta] A Swift SDK for seamlessly integrating Claude Code into your iOS and macOS applications. Interact with Anthropic's Claude Code programmatically for AI-powered coding assistance.
 
 ## Overview
 
@@ -178,4 +178,4 @@ ClaudeCodeSDK is available under the MIT license. See the `LICENSE` file for mor
 
 ## Documentation
 
-For more information about Claude Code and its capabilities, visit the [Anthropic Documentation](https://docs.anthropic.com/en/docs/claude-code/sdk).
+This is not an offical Anthropic SDK, For more information about Claude Code and its capabilities, visit the [Anthropic Documentation](https://docs.anthropic.com/en/docs/claude-code/sdk).

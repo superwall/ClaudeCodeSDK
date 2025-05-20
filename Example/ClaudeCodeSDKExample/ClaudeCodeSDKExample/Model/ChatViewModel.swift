@@ -100,6 +100,7 @@ public class ChatViewModel {
   
   private func startNewConversation(prompt: String, messageId: UUID) async throws {
     var options = ClaudeCodeOptions()
+    options.allowedTools = ["Bash","LS"]
     options.verbose = true
     
     let result = try await claudeClient.runSinglePrompt(
@@ -113,6 +114,7 @@ public class ChatViewModel {
   
   private func continueConversation(sessionId: String, prompt: String, messageId: UUID) async throws {
     var options = ClaudeCodeOptions()
+    options.allowedTools = ["Edit","Read","Bash","List"]
     options.verbose = true
     
     let result = try await claudeClient.resumeConversation(
@@ -159,6 +161,7 @@ public class ChatViewModel {
               case .assistant(let message):
                 // Handle different content types
                 for content in message.message.content {
+                  
                   switch content {
                   case .text(let textContent, _):
                     contentBuffer = textContent
@@ -170,14 +173,59 @@ public class ChatViewModel {
                     contentBuffer = toolMessage
                     self.updateAssistantMessage(messageId: messageId, content: toolMessage, isComplete: false)
                     
+                  case .toolResult(let toolResult):
+                    // Format differently based on success or error
+                    let resultPrefix = toolResult.isError == true ? "⚠️ TOOL ERROR: " : "TOOL RESULT: "
+                    let toolResultMessage = "\(resultPrefix)\(toolResult.content)"
+                    contentBuffer = toolResultMessage
+                    self.updateAssistantMessage(messageId: messageId, content: toolResultMessage, isComplete: false)
+                    
+                  case .thinking(let thinking):
+                    // Optionally handle thinking content
+                    let thinkingMessage = "THINKING: \(thinking.thinking)"
+                    contentBuffer = thinkingMessage
+                    self.updateAssistantMessage(messageId: messageId, content: thinkingMessage, isComplete: false)
+                    
+                  case .serverToolUse(let serverToolUse):
+                    let serverToolMessage = "SERVER TOOL: Using \(serverToolUse.name)"
+                    contentBuffer = serverToolMessage
+                    self.updateAssistantMessage(messageId: messageId, content: serverToolMessage, isComplete: false)
+                    
+                  case .webSearchToolResult(let searchResult):
+                    let webSearchMessage = "WEB SEARCH RESULT: Found \(searchResult.content.count) results"
+                    contentBuffer = webSearchMessage
+                    self.updateAssistantMessage(messageId: messageId, content: webSearchMessage, isComplete: false)
+                  }
+                }
+                if contentBuffer.isEmpty {
+                  logger.error("No processable content found in assistant message")
+                }
+                
+              case .user(let userMessage):
+                
+                //  Log the user message received from the stream
+                logger.info("Received user message in stream for session: \(userMessage.sessionId)")
+                
+                // Process user message content if needed
+                for content in userMessage.message.content {
+                  switch content {
+                  case .text(let textContent, _):
+                    logger.debug("User text content: \(textContent)")
+                    // You might want to add this to your message list or handle differently
+                    
+                  case .toolResult(let toolResult):
+                    
+                    // Handle tool results in user message
+                    let resultPrefix = toolResult.isError == true ? "⚠️ USER TOOL ERROR: " : "USER TOOL RESULT: "
+                    let toolResultMessage = "\(resultPrefix)\(toolResult.content)"
+                    logger.debug("\(toolResultMessage)")
+                    // Other cases are less likely in user messages but handle as needed
                   default:
+                    logger.debug("Received other content type in user message")
                     break
                   }
                 }
                 
-                if contentBuffer.isEmpty {
-                  logger.error("No processable content found in assistant message")
-                }
                 
               case .result(let resultMessage):
                 // Save the session ID for continuations
@@ -189,9 +237,6 @@ public class ChatViewModel {
                   contentBuffer = finalContent
                   self.updateAssistantMessage(messageId: messageId, content: finalContent, isComplete: true)
                 }
-                
-              default:
-                break
               }
             }
           )
