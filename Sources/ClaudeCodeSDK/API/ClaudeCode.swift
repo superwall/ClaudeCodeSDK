@@ -6,7 +6,6 @@
 //
 
 import Foundation
-
 /// Protocol that defines the interface for interacting with Claude Code.
 /// This allows for dependency injection and easier testing with mocks.
 /// Documentation: https://docs.anthropic.com/en/docs/claude-code/sdk

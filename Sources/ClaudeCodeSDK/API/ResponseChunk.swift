@@ -9,8 +9,8 @@ import Foundation
 
 public enum ResponseChunk {
   case initSystem(InitSystemMessage)
-  case user(Message)
-  case assistant(Message)
+  case user(UserMessage)
+  case assistant(AssistantMessage)
   case result(ResultMessage)
   
   public var sessionId: String {
@@ -22,4 +22,3 @@ public enum ResponseChunk {
     }
   }
 }
-
