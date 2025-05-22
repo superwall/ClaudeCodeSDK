@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		7BE907152DDC737A00F80117 /* ClaudeCodeSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 7BE907142DDC737A00F80117 /* ClaudeCodeSDK */; };
+		7B1F712A2DDF040B00A9596F /* ClaudeCodeSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 7B1F71292DDF040B00A9596F /* ClaudeCodeSDK */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,7 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7BE907152DDC737A00F80117 /* ClaudeCodeSDK in Frameworks */,
+				7B1F712A2DDF040B00A9596F /* ClaudeCodeSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -125,7 +125,7 @@
 			);
 			name = ClaudeCodeSDKExample;
 			packageProductDependencies = (
-				7BE907142DDC737A00F80117 /* ClaudeCodeSDK */,
+				7B1F71292DDF040B00A9596F /* ClaudeCodeSDK */,
 			);
 			productName = ClaudeCodeSDKExample;
 			productReference = 7BE906CF2DDC729B00F80117 /* ClaudeCodeSDKExample.app */;
@@ -210,7 +210,7 @@
 			mainGroup = 7BE906C62DDC729B00F80117;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				7BE9070D2DDC72DB00F80117 /* XCLocalSwiftPackageReference "../../../ClaudeCodeSDK" */,
+				7B1F71282DDF040500A9596F /* XCLocalSwiftPackageReference "../../../ClaudeCodeSDK" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7BE906D02DDC729B00F80117 /* Products */;
@@ -568,16 +568,16 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		7BE9070D2DDC72DB00F80117 /* XCLocalSwiftPackageReference "../../../ClaudeCodeSDK" */ = {
+		7B1F71282DDF040500A9596F /* XCLocalSwiftPackageReference "../../../ClaudeCodeSDK" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../../ClaudeCodeSDK;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		7BE907142DDC737A00F80117 /* ClaudeCodeSDK */ = {
+		7B1F71292DDF040B00A9596F /* ClaudeCodeSDK */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 7BE9070D2DDC72DB00F80117 /* XCLocalSwiftPackageReference "../../../ClaudeCodeSDK" */;
+			package = 7B1F71282DDF040500A9596F /* XCLocalSwiftPackageReference "../../../ClaudeCodeSDK" */;
 			productName = ClaudeCodeSDK;
 		};
 /* End XCSwiftPackageProductDependency section */

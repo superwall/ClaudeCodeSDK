@@ -10,14 +10,14 @@ import Foundation
 import SwiftUI
 
 struct ChatView: View {
-  
+
   @State var viewModel = ChatViewModel(claudeClient: ClaudeCodeClient(debug: true))
   @State private var messageText: String = ""
   @FocusState private var isTextFieldFocused: Bool
-  
+
   var body: some View {
     VStack {
-      
+
       // Chat messages list
       ScrollViewReader { scrollView in
         List {
@@ -36,21 +36,25 @@ struct ChatView: View {
         }
       }
       .listStyle(PlainListStyle())
-      
+
       // Error message if present
       if let error = viewModel.error {
         Text(error.localizedDescription)
           .foregroundColor(.red)
           .padding()
       }
-      
+
       // Input area
       HStack {
         TextField("Type a message...", text: $messageText)
           .padding(10)
           .cornerRadius(20)
           .focused($isTextFieldFocused)
-        
+          .onSubmit {
+            sendMessage()
+          }
+          .submitLabel(.send)
+
         if viewModel.isLoading {
           Button(action: {
             viewModel.cancelRequest()
@@ -74,11 +78,11 @@ struct ChatView: View {
     }
     .navigationTitle("Claude Code Chat")
   }
-  
+
   private func sendMessage() {
     let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { return }
-    
+
     viewModel.sendMessage(text)
     messageText = ""
   }

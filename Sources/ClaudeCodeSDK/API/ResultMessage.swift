@@ -18,4 +18,22 @@ public struct ResultMessage: Codable {
   public let result: String?
   public let sessionId: String
   public let totalCost: Double?
+  
+  /// Returns a formatted description of the result message with key information
+  public func description() -> String {
+    let resultText = result ?? "No result available"
+    let durationSeconds = durationMs / 1000.0
+    let durationApiSeconds = durationApiMs / 1000.0
+    
+    return """
+    Result: \(resultText) \n\n
+    Subtype: \(subtype), 
+    Cost: $\(String(format: "%.6f", costUsd)),
+    Duration: \(String(format: "%.2f", durationSeconds))s, 
+    API Duration: \(String(format: "%.2f", durationApiSeconds))s
+    Error: \(isError ? "Yes" : "No")
+    Number of Turns: \(numTurns)
+    Total Cost: $\(String(format: "%.6f", totalCost ?? costUsd))
+    """
+  }
 }
