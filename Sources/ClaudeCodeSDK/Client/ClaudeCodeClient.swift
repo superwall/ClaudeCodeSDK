@@ -534,7 +534,14 @@ public class ClaudeCodeClient: ClaudeCode {
           case .toolUse(let toolUse):
             logger?.debug("TOOL USE: \(toolUse.name)")
           case .toolResult(let toolResult):
-            logger?.debug("TOOL RESULT: \(toolResult.content), Error: \(toolResult.isError ?? false)")
+            switch toolResult.content {
+            case .string(let value):
+              logger?.debug("TOOL RESULT: \(value), Error: \(toolResult.isError ?? false)")
+            case .items(let items):
+              for item in items {
+                logger?.debug("TOOL RESULT: \(item.title ?? "No title for tool") response: \(item.text ?? "No text"), Error: \(toolResult.isError ?? false)")
+              }
+            }
           case .thinking(let thinking):
             logger?.debug("THINKING: \(thinking.thinking.prefix(50))...")
           case .serverToolUse(let serverToolUse):
