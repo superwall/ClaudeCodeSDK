@@ -10,14 +10,27 @@ import Foundation
 import SwiftUI
 
 struct ChatView: View {
-
+  
   @State var viewModel = ChatViewModel(claudeClient: ClaudeCodeClient(debug: true))
   @State private var messageText: String = ""
   @FocusState private var isTextFieldFocused: Bool
-
+  
   var body: some View {
     VStack {
-
+      // Top button bar
+      HStack {
+        Spacer()
+        Button(action: {
+          clearChat()
+        }) {
+          Image(systemName: "trash")
+            .font(.title2)
+        }
+        .disabled(viewModel.messages.isEmpty)
+      }
+      .padding(.horizontal)
+      .padding(.top, 8)
+      
       // Chat messages list
       ScrollViewReader { scrollView in
         List {
@@ -36,31 +49,42 @@ struct ChatView: View {
         }
       }
       .listStyle(PlainListStyle())
-
+      
       // Error message if present
       if let error = viewModel.error {
         Text(error.localizedDescription)
           .foregroundColor(.red)
           .padding()
       }
-
       // Input area
       HStack {
-        TextField("Type a message...", text: $messageText)
-          .padding(10)
+        TextEditor(text: $messageText)
+          .padding(8)
+          .frame(minHeight: 36, maxHeight: 90)
           .cornerRadius(20)
           .focused($isTextFieldFocused)
-          .onSubmit {
+          .overlay(
+            HStack {
+              if messageText.isEmpty {
+                Text("Type a message...")
+                  .foregroundColor(.gray)
+                  .padding(.leading, 12)
+                  .padding(.top, 8)
+                Spacer()
+              }
+            },
+            alignment: .topLeading
+          )
+          .onKeyPress(.return) {
             sendMessage()
+            return .ignored
           }
-          .submitLabel(.send)
-
+        
         if viewModel.isLoading {
           Button(action: {
             viewModel.cancelRequest()
           }) {
             Image(systemName: "stop.fill")
-              .foregroundColor(.red)
           }
           .padding(10)
         } else {
@@ -74,16 +98,22 @@ struct ChatView: View {
           .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
       }
-      .padding()
     }
     .navigationTitle("Claude Code Chat")
   }
-
+  
   private func sendMessage() {
     let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { return }
-
+    
+    // Remove focus first
     viewModel.sendMessage(text)
-    messageText = ""
+    DispatchQueue.main.async {
+      messageText = ""
+    }
+  }
+  
+  private func clearChat() {
+    viewModel.clearConversation()
   }
 }

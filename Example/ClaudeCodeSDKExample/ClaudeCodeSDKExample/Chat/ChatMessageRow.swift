@@ -67,7 +67,6 @@ struct MessageRow: View {
     .padding(.vertical, 8)
     .padding(.horizontal, 12)
     .background(backgroundShape)
-    .frame(maxWidth: message.role == .user ? min(CGFloat(message.content.count * 7), 350) : nil)
     .frame(maxWidth: 550, alignment: message.role == .user ? .trailing : .leading)
   }
 
@@ -127,7 +126,7 @@ struct MessageRow: View {
 
   private var roleLabel: String {
     switch message.messageType {
-    case .text: return message.role == .assistant ? "Claude" : "You"
+    case .text: return message.role == .assistant ? "Claude Code" : "You"
     case .toolUse: return message.toolName ?? "Tool"
     case .toolResult: return "Result"
     case .toolError: return "Error"

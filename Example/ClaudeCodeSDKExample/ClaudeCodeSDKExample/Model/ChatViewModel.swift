@@ -157,8 +157,13 @@ public class ChatViewModel {
               
               switch chunk {
               case .initSystem(let initMessage):
-                self.currentSessionId = initMessage.sessionId
-                logger.debug("Started session: \(initMessage.sessionId)")
+    
+                if currentSessionId == nil {  // Only update if not already in a conversation
+                    self.currentSessionId = initMessage.sessionId
+                    logger.debug("Started new session: \(initMessage.sessionId)")
+                } else {
+                    logger.debug("Continuing with new session ID: \(initMessage.sessionId)")
+                }
                 
               case .assistant(let message):
                 // Handle different content types
@@ -224,8 +229,6 @@ public class ChatViewModel {
                     break
                   }
                 }
-                
-                
               case .result(let resultMessage):
                 // Save the session ID for continuations
                 self.currentSessionId = resultMessage.sessionId
