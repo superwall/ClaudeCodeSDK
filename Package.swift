@@ -18,6 +18,7 @@ let package = Package(
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         .package(url: "https://github.com/jamesrochabrun/SwiftAnthropic", from: "2.1.3"),
+        .package(url: "https://github.com/swiftlang/swift-subprocess.git", branch: "main"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -26,6 +27,7 @@ let package = Package(
             name: "ClaudeCodeSDK",
             dependencies: [
                .product(name: "SwiftAnthropic", package: "SwiftAnthropic"),
+               .product(name: "Subprocess", package: "swift-subprocess"),
             ]),
         .testTarget(
             name: "ClaudeCodeSDKTests",
