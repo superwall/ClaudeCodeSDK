@@ -2,76 +2,148 @@
 //  ClaudeCodeClient.swift
 //  ClaudeCodeSDK
 //
-//  Created by James Rochabrun on 5/20/25.
-//
-@preconcurrency import Combine
 import Foundation
-import os.log
+import Combine
+import OSLog
+import Subprocess
 
-/// Concrete implementation of ClaudeCodeSDK that uses the Claude Code CLI
-public class ClaudeCodeClient: ClaudeCode {
-  private var task: Process?
-  private var cancellables = Set<AnyCancellable>()
-  private var logger: Logger?
+#if canImport(System)
+import System
+#else
+import SystemPackage
+#endif
+
+// MARK: ‑ Helpers
+
+/// Wrapper representing the captured output of a subprocess.
+private struct ProcessCapture {
+  let stdout: String
+  let stderr: String
+  let exitCode: Int32
+}
+
+/// Modern async wrapper using swift-subprocess.
+private func runProcess(
+  executable: String,
+  arguments: [String],
+  environment: [String: String],
+  workingDirectory: String?,
+  stdin: String?
+) async throws -> ProcessCapture {
+  
+  // Convert working directory to FilePath if provided
+  let workingDir: FilePath? = workingDirectory.map { FilePath($0) }
+  
+  // Execute subprocess with correct API - handle input conditionally to avoid type inference issues
+  let result: CollectedResult<StringOutput<UTF8>, StringOutput<UTF8>>
+  
+  if let inputString = stdin {
+    result = try await run(
+      .name(executable),
+      arguments: Arguments(arguments),
+      environment: .inherit.updating(environment),
+      workingDirectory: workingDir,
+      input: .string(inputString),
+      output: .string,
+      error: .string
+    )
+  } else {
+    result = try await run(
+      .name(executable),
+      arguments: Arguments(arguments),
+      environment: .inherit.updating(environment),
+      workingDirectory: workingDir,
+      input: .none,
+      output: .string,
+      error: .string
+    )
+  }
+  
+  // Extract exit code from TerminationStatus enum
+  let exitCode: Int32
+  switch result.terminationStatus {
+  case .exited(let code):
+    exitCode = Int32(code)
+  case .unhandledException(let code):
+    exitCode = Int32(code)
+  }
+  
+  return ProcessCapture(
+    stdout: result.standardOutput ?? "",
+    stderr: result.standardError ?? "",
+    exitCode: exitCode
+  )
+}
+
+// MARK: ‑ Convenience
+
+private extension String {
+  /// Returns a shell‑escaped / quoted version for logging purposes.
+  var shellEscaped: String {
+    // Simple rule: wrap in double quotes & escape internal quotes
+    "\"" + self.replacingOccurrences(of: "\"", with: "\\\"") + "\""
+  }
+}
+
+private extension ClaudeCodeOutputFormat {
+  /// `claude` expects   --output-format <value>
+  var cliTokens: [String] {
+    switch self {
+    case .text:       return ["--output-format", "text"]
+    case .json:       return ["--output-format", "json"]
+    case .streamJson: return ["--output-format", "stream-json"]
+    }
+  }
+}
+
+// MARK: ‑ Concrete SDK client
+
+public final class ClaudeCodeClient: ClaudeCode {
+  
+  // MARK: Stored
+  
   private let decoder = JSONDecoder()
-  private var currentWorkingDirectory: String = ""
+  private let logger  = Logger(subsystem: "com.yourcompany.ClaudeCodeClient", category: "ClaudeCode")
+  private let workingDirectory: String?
+  private var cancellables = Set<AnyCancellable>()
   
-  public init(workingDirectory: String = "", debug: Bool = false) {
-    self.currentWorkingDirectory = workingDirectory
-    
-    if debug {
-      self.logger = Logger(subsystem: "com.yourcompany.ClaudeCodeClient", category: "ClaudeCode")
-      logger?.info("Initializing Claude Code client")
-    }
-    
+  // MARK: Init
+  
+  public init(workingDirectory: String = "/Users/jamesrochabrun/Desktop/git/ClaudeCodeSDK", debug: Bool = false) {
+    self.workingDirectory = workingDirectory.isEmpty ? nil : workingDirectory
     decoder.keyDecodingStrategy = .convertFromSnakeCase
+    if debug { logger.debug("Initialised ClaudeCodeClient (wd: \(self.workingDirectory ?? "<inherit>"))") }
   }
-  // MARK: - Protocol Implementation
   
-  private func configuredProcess(for command: String) -> Process {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-    process.arguments = ["-c", command]
-    
-    if !currentWorkingDirectory.isEmpty {
-      process.currentDirectoryURL = URL(fileURLWithPath: currentWorkingDirectory)
-    }
-    
+  // MARK: Helper
+  
+  private func configuredEnvironment() -> [String: String] {
     var env = ProcessInfo.processInfo.environment
-    // TODO: Make this configurable
-    if let currentPath = env["PATH"] {
-      env["PATH"] = "\(currentPath):/usr/local/bin:/opt/homebrew/bin:/usr/bin"
+    let defaultPath = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+    if let existing = env["PATH"] {
+      env["PATH"] = existing + ":" + defaultPath
     } else {
-      env["PATH"] = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+      env["PATH"] = defaultPath
     }
-    process.environment = env
-    
-    logger?.info("Configured process with command: \(command)")
-    return process
+    return env
   }
+  
+  @inline(__always)
+  private func ensureSuccess(_ capture: ProcessCapture) throws {
+    guard capture.exitCode == 0 else {
+      throw ClaudeCodeError.executionFailed(capture.stderr)
+    }
+  }
+  
+  // MARK: ‑ Public API (ClaudeCode)
   
   public func runWithStdin(
     stdinContent: String,
     outputFormat: ClaudeCodeOutputFormat,
     options: ClaudeCodeOptions?
   ) async throws -> ClaudeCodeResult {
-    var opts = options ?? ClaudeCodeOptions()
-    
-    // Ensure print mode and verbose for stream-json
-    opts.printMode = true
-    if outputFormat == .streamJson {
-      opts.verbose = true
-    }
-    
-    let args = opts.toCommandArgs()
-    let argsString = args.joined(separator: " ")
-    let commandString = "claude \(argsString)"
-    
-    return try await executeClaudeCommand(
-      command: commandString,
-      outputFormat: outputFormat,
-      stdinContent: stdinContent
-    )
+    let cmd = try makeCommand(additional: options, outputFormat: outputFormat)
+    return try await executeClaude(arguments: cmd, outputFormat: outputFormat, stdin: stdinContent)
   }
   
   public func runSinglePrompt(
@@ -79,32 +151,8 @@ public class ClaudeCodeClient: ClaudeCode {
     outputFormat: ClaudeCodeOutputFormat,
     options: ClaudeCodeOptions?
   ) async throws -> ClaudeCodeResult {
-    var opts = options ?? ClaudeCodeOptions()
-    
-    // Ensure print mode and verbose for stream-json
-    opts.printMode = true
-    if outputFormat == .streamJson {
-      opts.verbose = true
-    }
-    
-    var args = opts.toCommandArgs()
-    args.append(outputFormat.commandArgument)
-    
-    // Properly escape the prompt for shell
-    let escapedPrompt = prompt.replacingOccurrences(of: "\"", with: "\\\"")
-    
-    // Construct the full command
-    var commandString = "claude \(args.joined(separator: " "))"
-    
-    // Add the prompt if not empty
-    if !prompt.isEmpty {
-      commandString += " \"\(escapedPrompt)\""
-    }
-    
-    return try await executeClaudeCommand(
-      command: commandString,
-      outputFormat: outputFormat
-    )
+    let cmd = try makeCommand(additional: options, outputFormat: outputFormat, trailing: prompt)
+    return try await executeClaude(arguments: cmd, outputFormat: outputFormat)
   }
   
   public func continueConversation(
@@ -112,31 +160,10 @@ public class ClaudeCodeClient: ClaudeCode {
     outputFormat: ClaudeCodeOutputFormat,
     options: ClaudeCodeOptions?
   ) async throws -> ClaudeCodeResult {
-    var opts = options ?? ClaudeCodeOptions()
-    
-    // Ensure print mode and verbose for stream-json
-    opts.printMode = true
-    if outputFormat == .streamJson {
-      opts.verbose = true
-    }
-    
-    var args = opts.toCommandArgs()
-    args.append("--continue")
-    args.append(outputFormat.commandArgument)
-    
-    // Construct the full command
-    var commandString = "claude \(args.joined(separator: " "))"
-    
-    // Add the prompt if provided
-    if let prompt = prompt, !prompt.isEmpty {
-      let escapedPrompt = prompt.replacingOccurrences(of: "\"", with: "\\\"")
-      commandString += " \"\(escapedPrompt)\""
-    }
-    
-    return try await executeClaudeCommand(
-      command: commandString,
-      outputFormat: outputFormat
-    )
+    var cmd = try makeCommand(additional: options, outputFormat: outputFormat)
+    cmd.append("--continue")
+    if let p = prompt, !p.isEmpty { cmd.append(p) }
+    return try await executeClaude(arguments: cmd, outputFormat: outputFormat)
   }
   
   public func resumeConversation(
@@ -145,488 +172,127 @@ public class ClaudeCodeClient: ClaudeCode {
     outputFormat: ClaudeCodeOutputFormat,
     options: ClaudeCodeOptions?
   ) async throws -> ClaudeCodeResult {
-    var opts = options ?? ClaudeCodeOptions()
-    
-    // Ensure print mode and verbose for stream-json
-    opts.printMode = true
-    if outputFormat == .streamJson {
-      opts.verbose = true
-    }
-    
-    var args = opts.toCommandArgs()
-    args.append("--resume")
-    args.append(sessionId)
-    args.append(outputFormat.commandArgument)
-    
-    // Construct the full command
-    var commandString = "claude \(args.joined(separator: " "))"
-    
-    // Add the prompt if provided
-    if let prompt = prompt, !prompt.isEmpty {
-      let escapedPrompt = prompt.replacingOccurrences(of: "\"", with: "\\\"")
-      commandString += " \"\(escapedPrompt)\""
-    }
-    
-    return try await executeClaudeCommand(
-      command: commandString,
-      outputFormat: outputFormat
-    )
+    var cmd = try makeCommand(additional: options, outputFormat: outputFormat)
+    cmd.append(contentsOf: ["--resume", sessionId])
+    if let p = prompt, !p.isEmpty { cmd.append(p) }
+    return try await executeClaude(arguments: cmd, outputFormat: outputFormat)
   }
   
   public func listSessions() async throws -> [SessionInfo] {
-    let commandString = "claude logs --output-format json"
+    let capture = try await runProcess(
+      executable: "claude",
+      arguments: ["logs", "--output-format", "json"],
+      environment: configuredEnvironment(),
+      workingDirectory: workingDirectory,
+      stdin: nil
+    )
     
-    let process = configuredProcess(for: commandString)
+    try ensureSuccess(capture)
     
-    let outputPipe = Pipe()
-    let errorPipe = Pipe()
-    process.standardOutput = outputPipe
-    process.standardError = errorPipe
-    
+    guard let data = capture.stdout.data(using: .utf8) else {
+      throw ClaudeCodeError.invalidOutput("Unable to UTF‑8 decode logs output")
+    }
     do {
-      try process.run()
-      process.waitUntilExit()
-      
-      if process.terminationStatus != 0 {
-        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-        let errorString = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-        logger?.error("Failed to list sessions: \(errorString)")
-        throw ClaudeCodeError.executionFailed(errorString)
-      }
-      
-      let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-      guard let output = String(data: outputData, encoding: .utf8) else {
-        throw ClaudeCodeError.invalidOutput("Could not decode output as UTF-8")
-      }
-      
-      logger?.debug("Received session list output: \(output.prefix(100))...")
-      
-      do {
-        let sessions = try decoder.decode([SessionInfo].self, from: outputData)
-        logger?.info("Successfully retrieved \(sessions.count) sessions")
-        return sessions
-      } catch {
-        logger?.error("JSON parsing error when decoding sessions: \(error)")
-        throw ClaudeCodeError.jsonParsingError(error)
-      }
+      return try decoder.decode([SessionInfo].self, from: data)
     } catch {
-      logger?.error("Error listing sessions: \(error.localizedDescription)")
-      throw error
+      throw ClaudeCodeError.jsonParsingError(error)
     }
   }
   
   public func cancel() {
-    task?.terminate()
-    task = nil
-    
-    for cancellable in cancellables {
-      cancellable.cancel()
-    }
+    // Note: swift-subprocess runs are awaited, so cancellation would be handled
+    // by canceling the enclosing Task that calls these methods
+    cancellables.forEach { $0.cancel() }
     cancellables.removeAll()
   }
   
-  private func executeClaudeCommand(
-    command: String,
+  // MARK: ‑ Internals
+  
+  /// Builds the base command array, inserting options & output‑format.
+  private func makeCommand(additional options: ClaudeCodeOptions?, outputFormat: ClaudeCodeOutputFormat, trailing: String? = nil) throws -> [String] {
+    var opts = options ?? ClaudeCodeOptions()
+    opts.printMode = true
+    if outputFormat == .streamJson { opts.verbose = true }
+    
+    var cmd = opts.toCommandArgs()
+    cmd.append(contentsOf: outputFormat.cliTokens)   // <<‑ split token & value
+    if let t = trailing, !t.isEmpty { cmd.append(t) }
+    return cmd
+  }
+  
+  private func executeClaude(
+    arguments: [String],
     outputFormat: ClaudeCodeOutputFormat,
-    stdinContent: String? = nil
+    stdin: String? = nil
   ) async throws -> ClaudeCodeResult {
-    logger?.info("Executing command: \(command)")
     
-    let process = configuredProcess(for: command)
+    // —‑‑ Smart‑quoted log output ‑‑‑—
+    let displayArgs = arguments.enumerated().map { idx, arg -> String in
+      // Always quote the *last* token (prompt) so even "hi" gets wrapped.
+      if idx == arguments.count - 1 {
+        return arg.shellEscaped
+      }
+      // Quote only if needed for others (spaces or quotes)
+      if arg.contains(where: { $0.isWhitespace || $0 == "\"" }) {
+        return arg.shellEscaped
+      }
+      return arg
+    }
+    logger.info("Executing: claude \(displayArgs.joined(separator: " "))")
     
-    let outputPipe = Pipe()
-    let errorPipe = Pipe()
-    process.standardOutput = outputPipe
-    process.standardError = errorPipe
+    let capture = try await runProcess(
+      executable: "claude",
+      arguments: arguments,
+      environment: configuredEnvironment(),
+      workingDirectory: workingDirectory,
+      stdin: stdin
+    )
     
-    // Set up stdin if content provided
-    if let stdinContent = stdinContent {
-      let stdinPipe = Pipe()
-      process.standardInput = stdinPipe
+    try ensureSuccess(capture)
+    
+    switch outputFormat {
+    case .text:
+      return .text(capture.stdout)
       
-      if let data = stdinContent.data(using: .utf8) {
-        try stdinPipe.fileHandleForWriting.write(contentsOf: data)
-        stdinPipe.fileHandleForWriting.closeFile()
+    case .json:
+      guard let data = capture.stdout.data(using: .utf8) else {
+        throw ClaudeCodeError.invalidOutput("Unable to UTF‑8 decode output")
       }
-    }
-    
-    // Store for cancellation
-    self.task = process
-    
-    do {
-      // Handle stream-json differently
-      if outputFormat == .streamJson {
-        return try await handleStreamJsonOutput(process: process, outputPipe: outputPipe, errorPipe: errorPipe)
-      } else {
-        // For text and json formats, run synchronously
-        try process.run()
-        process.waitUntilExit()
-        
-        if process.terminationStatus != 0 {
-          let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-          let errorString = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-          
-          if errorString.contains("No such file or directory") ||
-              errorString.contains("command not found") {
-            logger?.error("Claude command not found: \(errorString)")
-            throw ClaudeCodeError.notInstalled
-          } else {
-            logger?.error("Process failed with error: \(errorString)")
-            throw ClaudeCodeError.executionFailed(errorString)
-          }
-        }
-        
-        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        guard let output = String(data: outputData, encoding: .utf8) else {
-          throw ClaudeCodeError.invalidOutput("Could not decode output as UTF-8")
-        }
-        
-        logger?.debug("Received output: \(output.prefix(100))...")
-        
-        switch outputFormat {
-        case .text:
-          return .text(output)
-        case .json:
-          do {
-            guard let data = output.data(using: .utf8) else {
-              throw ClaudeCodeError.invalidOutput("Could not convert output to data")
-            }
-            
-            let resultMessage = try decoder.decode(ResultMessage.self, from: data)
-            return .json(resultMessage)
-          } catch {
-            logger?.error("JSON parsing error: \(error)")
-            throw ClaudeCodeError.jsonParsingError(error)
-          }
-        default:
-          throw ClaudeCodeError.invalidOutput("Unexpected output format")
-        }
-      }
-    } catch let error as ClaudeCodeError {
-      throw error
-    } catch {
-      logger?.error("Error executing command: \(error.localizedDescription)")
-      throw ClaudeCodeError.executionFailed(error.localizedDescription)
-    }
-  }
-  
-  // MARK: - Stream JSON Output Handling
-  
-  private func handleStreamJsonOutput(
-    process: Process,
-    outputPipe: Pipe,
-    errorPipe: Pipe
-  ) async throws -> ClaudeCodeResult {
-    // Create a publisher for streaming JSON
-    let subject = PassthroughSubject<ResponseChunk, Error>()
-    let publisher = subject.eraseToAnyPublisher()
-    
-    // Create a stream buffer
-    let streamBuffer = StreamBuffer()
-    
-    // Capture values to avoid capturing self in @Sendable closures
-    let decoder = self.decoder
-    let logger = self.logger
-    
-    // Configure handlers for readability
-    outputPipe.fileHandleForReading.readabilityHandler = { fileHandle in
-      let data = fileHandle.availableData
-      guard !data.isEmpty else {
-        // End of file
-        fileHandle.readabilityHandler = nil
-        Task {
-          // Process any remaining data
-          if !(await streamBuffer.isEmpty()) {
-            if let outputString = await streamBuffer.getString() {
-              ClaudeCodeClient.processJsonLine(
-                outputString,
-                subject: subject,
-                decoder: decoder,
-                logger: logger
-              )
-            }
-          }
-          subject.send(completion: .finished)
-        }
-        return
+      do {
+        return .json(try decoder.decode(ResultMessage.self, from: data))
+      } catch {
+        throw ClaudeCodeError.jsonParsingError(error)
       }
       
-      Task {
-        // Append to buffer
-        await streamBuffer.append(data)
-        
-        // Parse the data as JSON line by line
-        guard let outputString = await streamBuffer.getString() else { return }
-        
-        // Split by newlines
-        let lines = outputString.components(separatedBy: .newlines)
-        
-        // Process all complete lines except the last one (which may be incomplete)
-        if lines.count > 1 {
-          // Reset buffer to only contain the potentially incomplete last line
-          if !lines.last!.isEmpty {
-            if let lastLineData = lines.last!.data(using: .utf8) {
-              await streamBuffer.set(lastLineData)
-            }
-          } else {
-            await streamBuffer.set(Data())
-          }
-          
-          // Process all complete lines
-          for i in 0..<lines.count-1 where !lines[i].isEmpty {
-            ClaudeCodeClient.processJsonLine(
-              lines[i],
-              subject: subject,
-              decoder: decoder,
-              logger: logger
-            )
-          }
-        }
-      }
-    }
-    
-    // Configure handler for termination
-    process.terminationHandler = { process in
-      Task {
-        // Process any remaining data
-        if !(await streamBuffer.isEmpty()) {
-          if let outputString = await streamBuffer.getString() {
-            ClaudeCodeClient.processJsonLine(
-              outputString,
-              subject: subject,
-              decoder: decoder,
-              logger: logger
-            )
-          }
-        }
-        
-        if process.terminationStatus != 0 {
-          let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-          if let errorString = String(data: errorData, encoding: .utf8) {
-            logger?.error("Process terminated with error: \(errorString)")
-            
-            if errorString.contains("No such file or directory") ||
-                errorString.contains("command not found") {
-              subject.send(completion: .failure(ClaudeCodeError.notInstalled))
-            } else {
-              subject.send(completion: .failure(ClaudeCodeError.executionFailed(errorString)))
-            }
-          } else {
-            subject.send(completion: .failure(ClaudeCodeError.executionFailed("Unknown error")))
-          }
-        } else {
-          // Clean completion if not already completed
-          subject.send(completion: .finished)
-        }
-        
-        // Clean up
-        outputPipe.fileHandleForReading.readabilityHandler = nil
-      }
-    }
-    
-    // Start the process
-    do {
-      try process.run()
-      self.task = process
-    } catch {
-      logger?.error("Failed to start process: \(error.localizedDescription)")
-      
-      if (error as NSError).domain == NSPOSIXErrorDomain && (error as NSError).code == 2 {
-        // No such file or directory
-        throw ClaudeCodeError.notInstalled
-      }
-      throw error
-    }
-    
-    // Return the publisher
-    return .stream(publisher)
-  }
-  
-  // MARK: - Stream Buffer
-  
-  actor StreamBuffer {
-    private var buffer = Data()
-    
-    func append(_ data: Data) {
-      buffer.append(data)
-    }
-    
-    func getAndClear() -> Data {
-      let current = buffer
-      buffer = Data()
-      return current
-    }
-    
-    func set(_ data: Data) {
-      buffer = data
-    }
-    
-    func isEmpty() -> Bool {
-      return buffer.isEmpty
-    }
-    
-    func getString() -> String? {
-      return String(data: buffer, encoding: .utf8)
+    case .streamJson:
+      return try streamChunks(from: capture.stdout)
     }
   }
   
-  // MARK: - JSON Processing
+  // MARK: Stream‑JSON support → collect & replay
   
-  // Make processJsonLine a static method to avoid capturing self
-  private static func processJsonLine(
-    _ line: String,
-    subject: PassthroughSubject<ResponseChunk, Error>,
-    decoder: JSONDecoder,
-    logger: Logger?
-  ) {
-    guard !line.isEmpty else { return }
-    
-    logger?.debug("Processing JSON line: \(line.prefix(100))...")
-    
-    guard let lineData = line.data(using: .utf8) else {
-      logger?.error("Could not convert line to data: \(line.prefix(50))...")
-      return
+  private func streamChunks(from raw: String) throws -> ClaudeCodeResult {
+    let lines = raw.split(separator: "\n")
+    let chunks: [ResponseChunk] = try lines.compactMap { line in
+      guard !line.isEmpty else { return nil }
+      let data = Data(line.utf8)
+      return try decodeChunk(from: data)
     }
-    
-    // Fix the warning by separating the throwing part
-    let jsonObject: Any
-    do {
-      // This is the throwing call
-      jsonObject = try JSONSerialization.jsonObject(with: lineData)
-    } catch {
-      logger?.error("Error parsing JSON data: \(error)")
-      return
-    }
-    
-    // Then do the optional cast separately
-    guard let json = jsonObject as? [String: Any],
-          let typeString = json["type"] as? String else {
-      logger?.error("Invalid JSON structure or missing 'type' field")
-      return
-    }
-    
-    do {
-      switch typeString {
-      case "system":
-        processSystemMessage(
-          json: json,
-          lineData: lineData,
-          subject: subject,
-          decoder: decoder,
-          logger: logger
-        )
-        
-      case "user":
-        let userMessage = try decoder.decode(UserMessage.self, from: lineData)
-        logger?.debug("Received user message for session: \(userMessage.sessionId)")
-        subject.send(.user(userMessage))
-        
-      case "assistant":
-        let assistantMessage = try decoder.decode(AssistantMessage.self, from: lineData)
-        logger?.debug("STREAMING CHUNK RECEIVED")
-        
-        // Process the content array directly
-        for content in assistantMessage.message.content {
-          switch content {
-          case .text(let textContent, _):
-            logger?.debug("CHUNK CONTENT: \(textContent)")
-            logger?.debug("CONTENT LENGTH: \(textContent.count)")
-          case .toolUse(let toolUse):
-            logger?.debug("TOOL USE: \(toolUse.name)")
-          case .toolResult(let toolResult):
-            switch toolResult.content {
-            case .string(let value):
-              logger?.debug("TOOL RESULT: \(value), Error: \(toolResult.isError ?? false)")
-            case .items(let items):
-              for item in items {
-                logger?.debug("TOOL RESULT: \(item.title ?? "No title for tool") response: \(item.text ?? "No text"), Error: \(toolResult.isError ?? false)")
-              }
-            }
-          case .thinking(let thinking):
-            logger?.debug("THINKING: \(thinking.thinking.prefix(50))...")
-          case .serverToolUse(let serverToolUse):
-            logger?.debug("SERVER TOOL USE: \(serverToolUse.name)")
-          case .webSearchToolResult(let searchResult):
-            logger?.debug("WEB SEARCH RESULT: \(searchResult.content.count) results")
-          }
-        }
-        
-        logger?.debug("Received assistant message for session: \(assistantMessage.sessionId)")
-        subject.send(.assistant(assistantMessage))
-        
-      case "result":
-        let resultMessage = try decoder.decode(ResultMessage.self, from: lineData)
-        logger?.info("Received result message: cost=\(resultMessage.costUsd), turns=\(resultMessage.numTurns)")
-        subject.send(.result(resultMessage))
-        
-      default:
-        logger?.warning("Unknown message type: \(typeString)")
-      }
-    } catch {
-      // This catch block is now reachable since we have throwing calls in the do block
-      handleJsonProcessingError(error: error, lineData: lineData, logger: logger)
-    }
+    return .stream(Publishers.Sequence(sequence: chunks).eraseToAnyPublisher())
   }
   
-  // Make processSystemMessage static
-  private static func processSystemMessage(
-    json: [String: Any],
-    lineData: Data,
-    subject: PassthroughSubject<ResponseChunk, Error>,
-    decoder: JSONDecoder,
-    logger: Logger?
-  ) {
-    guard let subtypeString = json["subtype"] as? String else {
-      logger?.warning("System message missing subtype")
-      return
+  private func decodeChunk(from data: Data) throws -> ResponseChunk {
+    let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+    guard let type = json?["type"] as? String else {
+      throw ClaudeCodeError.invalidOutput("Missing `type` field in stream‑JSON")
     }
     
-    do {
-      if subtypeString == "init" {
-        let initMessage = try decoder.decode(InitSystemMessage.self, from: lineData)
-        logger?.info("Received init message with session ID: \(initMessage.sessionId)")
-        subject.send(.initSystem(initMessage))
-      } else {
-        let resultMessage = try decoder.decode(ResultMessage.self, from: lineData)
-        logger?.info("Received result message: cost=\(resultMessage.costUsd), turns=\(resultMessage.numTurns)")
-        subject.send(.result(resultMessage))
-      }
-    } catch {
-      logger?.error("Error decoding system message: \(error)")
+    switch type {
+    case "system":   return .initSystem(try decoder.decode(InitSystemMessage.self, from: data))
+    case "user":     return .user(try decoder.decode(UserMessage.self, from: data))
+    case "assistant":return .assistant(try decoder.decode(AssistantMessage.self, from: data))
+    case "result":   return .result(try decoder.decode(ResultMessage.self, from: data))
+    default:          throw ClaudeCodeError.invalidOutput("Unknown stream‑JSON type \(type)")
     }
-  }
-  
-  // Make handleJsonProcessingError static
-  private static func handleJsonProcessingError(
-    error: Error,
-    lineData: Data,
-    logger: Logger?
-  ) {
-    logger?.error("Error parsing JSON: \(error.localizedDescription)")
-    
-    if let decodingError = error as? DecodingError {
-      switch decodingError {
-      case .keyNotFound(let key, let context):
-        logger?.error("Missing key: \(key.stringValue), path: \(context.codingPath.map { $0.stringValue })")
-        
-        // Debug JSON structure
-        if let jsonObject = try? JSONSerialization.jsonObject(with: lineData),
-           let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted),
-           let prettyString = String(data: prettyData, encoding: .utf8) {
-          logger?.error("JSON structure: \(prettyString)")
-        }
-        
-      case .typeMismatch(let type, let context):
-        logger?.error("Type mismatch: expected \(type), path: \(context.codingPath.map { $0.stringValue })")
-        
-      default:
-        logger?.error("Other decoding error: \(decodingError)")
-      }
-    }
-    
-    if let lineString = String(data: lineData, encoding: .utf8) {
-      logger?.error("Error on line: \(lineString.prefix(200))...")
-    }
-    logger?.error("Error details: \(error)")
   }
 }
