@@ -2,6 +2,7 @@
 //  ClaudeCodeClient.swift
 //  ClaudeCodeSDK
 //
+
 import Foundation
 import Combine
 import OSLog
@@ -11,6 +12,12 @@ import Subprocess
 import System
 #else
 import SystemPackage
+#endif
+
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
 #endif
 
 // MARK: ‑ Helpers
@@ -28,7 +35,8 @@ private func runProcess(
   arguments: [String],
   environment: [String: String],
   workingDirectory: String?,
-  stdin: String?
+  stdin: String?,
+  storeProcessId: ((Int32) -> Void)? = nil
 ) async throws -> ProcessCapture {
   
   // Convert working directory to FilePath if provided
@@ -58,6 +66,9 @@ private func runProcess(
       error: .string
     )
   }
+  
+  // Store process ID if callback provided
+  storeProcessId?(Int32(result.processIdentifier.value))
   
   // Extract exit code from TerminationStatus enum
   let exitCode: Int32
@@ -89,8 +100,8 @@ private extension ClaudeCodeOutputFormat {
   /// `claude` expects   --output-format <value>
   var cliTokens: [String] {
     switch self {
-    case .text:       return ["--output-format", "text"]
-    case .json:       return ["--output-format", "json"]
+    case .text: return ["--output-format", "text"]
+    case .json: return ["--output-format", "json"]
     case .streamJson: return ["--output-format", "stream-json"]
     }
   }
@@ -103,16 +114,24 @@ public final class ClaudeCodeClient: ClaudeCode {
   // MARK: Stored
   
   private let decoder = JSONDecoder()
-  private let logger  = Logger(subsystem: "com.yourcompany.ClaudeCodeClient", category: "ClaudeCode")
+  private let logger: Logger?
+  private let claudeCommand: String
   private let workingDirectory: String?
   private var cancellables = Set<AnyCancellable>()
+  private var runningProcessId: Int32?
   
   // MARK: Init
   
-  public init(workingDirectory: String = "/Users/jamesrochabrun/Desktop/git/ClaudeCodeSDK", debug: Bool = false) {
+  public init(claudeCommand: String = "claude", workingDirectory: String = "", debug: Bool = false) {
+    self.claudeCommand = claudeCommand
     self.workingDirectory = workingDirectory.isEmpty ? nil : workingDirectory
+    self.logger = debug ? Logger(subsystem: "com.ClaudeCodeSDK.ClaudeCodeClient", category: "ClaudeCode") : nil
+    
     decoder.keyDecodingStrategy = .convertFromSnakeCase
-    if debug { logger.debug("Initialised ClaudeCodeClient (wd: \(self.workingDirectory ?? "<inherit>"))") }
+    
+    if debug {
+      logger?.debug("Initialised ClaudeCodeClient (command: \(self.claudeCommand), wd: \(self.workingDirectory ?? "<inherit>"))")
+    }
   }
   
   // MARK: Helper
@@ -179,12 +198,14 @@ public final class ClaudeCodeClient: ClaudeCode {
   }
   
   public func listSessions() async throws -> [SessionInfo] {
+    // Don't track this process ID since it's a quick operation
     let capture = try await runProcess(
-      executable: "claude",
+      executable: claudeCommand,
       arguments: ["logs", "--output-format", "json"],
       environment: configuredEnvironment(),
       workingDirectory: workingDirectory,
-      stdin: nil
+      stdin: nil,
+      storeProcessId: nil
     )
     
     try ensureSuccess(capture)
@@ -200,10 +221,28 @@ public final class ClaudeCodeClient: ClaudeCode {
   }
   
   public func cancel() {
-    // Note: swift-subprocess runs are awaited, so cancellation would be handled
-    // by canceling the enclosing Task that calls these methods
+    // Kill the running subprocess if it exists
+    if let pid = runningProcessId {
+      logger?.debug("Terminating process with PID: \(pid)")
+      
+      // Send SIGTERM first (graceful termination)
+      kill(pid, SIGTERM)
+      
+      // Give it a moment to terminate gracefully
+      DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+        // If still running, force kill with SIGKILL
+        if kill(pid, 0) == 0 { // Check if process still exists
+          kill(pid, SIGKILL)
+        }
+      }
+      
+      runningProcessId = nil
+    }
+    
+    // Cancel any Combine subscriptions
     cancellables.forEach { $0.cancel() }
     cancellables.removeAll()
+    logger?.debug("Cancelled all running operations")
   }
   
   // MARK: ‑ Internals
@@ -238,15 +277,22 @@ public final class ClaudeCodeClient: ClaudeCode {
       }
       return arg
     }
-    logger.info("Executing: claude \(displayArgs.joined(separator: " "))")
+    let info = "Executing: \(claudeCommand) \(displayArgs.joined(separator: " "))"
+    logger?.info("\(info)")
     
     let capture = try await runProcess(
-      executable: "claude",
+      executable: claudeCommand,
       arguments: arguments,
       environment: configuredEnvironment(),
       workingDirectory: workingDirectory,
-      stdin: stdin
+      stdin: stdin,
+      storeProcessId: { [weak self] pid in
+        self?.runningProcessId = pid
+      }
     )
+    
+    // Clear the process ID since execution completed
+    runningProcessId = nil
     
     try ensureSuccess(capture)
     
@@ -288,11 +334,11 @@ public final class ClaudeCodeClient: ClaudeCode {
     }
     
     switch type {
-    case "system":   return .initSystem(try decoder.decode(InitSystemMessage.self, from: data))
-    case "user":     return .user(try decoder.decode(UserMessage.self, from: data))
+    case "system": return .initSystem(try decoder.decode(InitSystemMessage.self, from: data))
+    case "user": return .user(try decoder.decode(UserMessage.self, from: data))
     case "assistant":return .assistant(try decoder.decode(AssistantMessage.self, from: data))
-    case "result":   return .result(try decoder.decode(ResultMessage.self, from: data))
-    default:          throw ClaudeCodeError.invalidOutput("Unknown stream‑JSON type \(type)")
+    case "result": return .result(try decoder.decode(ResultMessage.self, from: data))
+    default: throw ClaudeCodeError.invalidOutput("Unknown stream‑JSON type \(type)")
     }
   }
 }
