@@ -2,8 +2,6 @@
 //  ClaudeCodeClient.swift
 //  ClaudeCodeSDK
 //
-//  Created by James Rochabrun on 5/20/25.
-//
 @preconcurrency import Combine
 import Foundation
 import os.log
@@ -90,20 +88,14 @@ public class ClaudeCodeClient: ClaudeCode {
     var args = opts.toCommandArgs()
     args.append(outputFormat.commandArgument)
     
-    // Properly escape the prompt for shell
-    let escapedPrompt = prompt.replacingOccurrences(of: "\"", with: "\\\"")
+    // Do NOT append the prompt as a quoted argument!
+    let commandString = "claude \(args.joined(separator: " "))"
     
-    // Construct the full command
-    var commandString = "claude \(args.joined(separator: " "))"
-    
-    // Add the prompt if not empty
-    if !prompt.isEmpty {
-      commandString += " \"\(escapedPrompt)\""
-    }
-    
+    // Always send the prompt via stdin
     return try await executeClaudeCommand(
       command: commandString,
-      outputFormat: outputFormat
+      outputFormat: outputFormat,
+      stdinContent: prompt
     )
   }
   
@@ -124,18 +116,14 @@ public class ClaudeCodeClient: ClaudeCode {
     args.append("--continue")
     args.append(outputFormat.commandArgument)
     
-    // Construct the full command
-    var commandString = "claude \(args.joined(separator: " "))"
+    // Construct the full command (no prompt appended!)
+    let commandString = "claude \(args.joined(separator: " "))"
     
-    // Add the prompt if provided
-    if let prompt = prompt, !prompt.isEmpty {
-      let escapedPrompt = prompt.replacingOccurrences(of: "\"", with: "\\\"")
-      commandString += " \"\(escapedPrompt)\""
-    }
-    
+    // Pass prompt via stdin (or nil if not provided)
     return try await executeClaudeCommand(
       command: commandString,
-      outputFormat: outputFormat
+      outputFormat: outputFormat,
+      stdinContent: prompt
     )
   }
   
@@ -158,20 +146,17 @@ public class ClaudeCodeClient: ClaudeCode {
     args.append(sessionId)
     args.append(outputFormat.commandArgument)
     
-    // Construct the full command
-    var commandString = "claude \(args.joined(separator: " "))"
+    // Build the command without the prompt
+    let commandString = "claude \(args.joined(separator: " "))"
     
-    // Add the prompt if provided
-    if let prompt = prompt, !prompt.isEmpty {
-      let escapedPrompt = prompt.replacingOccurrences(of: "\"", with: "\\\"")
-      commandString += " \"\(escapedPrompt)\""
-    }
-    
+    // Use stdin for prompt
     return try await executeClaudeCommand(
       command: commandString,
-      outputFormat: outputFormat
+      outputFormat: outputFormat,
+      stdinContent: prompt
     )
   }
+  
   
   public func listSessions() async throws -> [SessionInfo] {
     let commandString = "claude logs --output-format json"
