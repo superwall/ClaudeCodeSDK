@@ -12,6 +12,7 @@ import os.log
 import SwiftAnthropic
 
 @Observable
+@MainActor
 public class ChatViewModel {
   
   private let claudeClient: ClaudeCode

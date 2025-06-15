@@ -12,17 +12,27 @@ public class ClaudeCodeClient: ClaudeCode {
   private var cancellables = Set<AnyCancellable>()
   private var logger: Logger?
   private let decoder = JSONDecoder()
-  private var currentWorkingDirectory: String = ""
   
-  public init(workingDirectory: String = "", debug: Bool = false) {
-    self.currentWorkingDirectory = workingDirectory
+  /// Configuration for the client - can be updated at any time
+  public var configuration: ClaudeCodeConfiguration
+  
+  public init(configuration: ClaudeCodeConfiguration = .default) {
+    self.configuration = configuration
     
-    if debug {
+    if configuration.enableDebugLogging {
       self.logger = Logger(subsystem: "com.yourcompany.ClaudeCodeClient", category: "ClaudeCode")
       logger?.info("Initializing Claude Code client")
     }
     
     decoder.keyDecodingStrategy = .convertFromSnakeCase
+  }
+  
+  /// Convenience initializer for backward compatibility
+  public convenience init(workingDirectory: String = "", debug: Bool = false) {
+    var config = ClaudeCodeConfiguration.default
+    config.workingDirectory = workingDirectory.isEmpty ? nil : workingDirectory
+    config.enableDebugLogging = debug
+    self.init(configuration: config)
   }
   // MARK: - Protocol Implementation
   
@@ -31,17 +41,27 @@ public class ClaudeCodeClient: ClaudeCode {
     process.executableURL = URL(fileURLWithPath: "/bin/zsh")
     process.arguments = ["-c", command]
     
-    if !currentWorkingDirectory.isEmpty {
-      process.currentDirectoryURL = URL(fileURLWithPath: currentWorkingDirectory)
+    if let workingDirectory = configuration.workingDirectory {
+      process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
     }
     
     var env = ProcessInfo.processInfo.environment
-    // TODO: Make this configurable
-    if let currentPath = env["PATH"] {
-      env["PATH"] = "\(currentPath):/usr/local/bin:/opt/homebrew/bin:/usr/bin"
-    } else {
-      env["PATH"] = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+    
+    // Add additional paths to PATH
+    if !configuration.additionalPaths.isEmpty {
+      let additionalPathString = configuration.additionalPaths.joined(separator: ":")
+      if let currentPath = env["PATH"] {
+        env["PATH"] = "\(currentPath):\(additionalPathString)"
+      } else {
+        env["PATH"] = "\(additionalPathString):/bin"
+      }
     }
+    
+    // Apply custom environment variables
+    for (key, value) in configuration.environment {
+      env[key] = value
+    }
+    
     process.environment = env
     
     logger?.info("Configured process with command: \(command)")
@@ -63,7 +83,7 @@ public class ClaudeCodeClient: ClaudeCode {
     
     let args = opts.toCommandArgs()
     let argsString = args.joined(separator: " ")
-    let commandString = "claude \(argsString)"
+    let commandString = "\(configuration.command) \(argsString)"
     
     return try await executeClaudeCommand(
       command: commandString,
@@ -89,7 +109,7 @@ public class ClaudeCodeClient: ClaudeCode {
     args.append(outputFormat.commandArgument)
     
     // Do NOT append the prompt as a quoted argument!
-    let commandString = "claude \(args.joined(separator: " "))"
+    let commandString = "\(configuration.command) \(args.joined(separator: " "))"
     
     // Always send the prompt via stdin
     return try await executeClaudeCommand(
@@ -117,7 +137,7 @@ public class ClaudeCodeClient: ClaudeCode {
     args.append(outputFormat.commandArgument)
     
     // Construct the full command (no prompt appended!)
-    let commandString = "claude \(args.joined(separator: " "))"
+    let commandString = "\(configuration.command) \(args.joined(separator: " "))"
     
     // Pass prompt via stdin (or nil if not provided)
     return try await executeClaudeCommand(
@@ -147,7 +167,7 @@ public class ClaudeCodeClient: ClaudeCode {
     args.append(outputFormat.commandArgument)
     
     // Build the command without the prompt
-    let commandString = "claude \(args.joined(separator: " "))"
+    let commandString = "\(configuration.command) \(args.joined(separator: " "))"
     
     // Use stdin for prompt
     return try await executeClaudeCommand(
@@ -159,7 +179,7 @@ public class ClaudeCodeClient: ClaudeCode {
   
   
   public func listSessions() async throws -> [SessionInfo] {
-    let commandString = "claude logs --output-format json"
+    let commandString = "\(configuration.command) logs --output-format json"
     
     let process = configuredProcess(for: commandString)
     
@@ -466,7 +486,7 @@ public class ClaudeCodeClient: ClaudeCode {
   ) {
     guard !line.isEmpty else { return }
     
-    logger?.debug("Processing JSON line: \(line.prefix(100))...")
+    logger?.debug("Processing JSON line: \(line.prefix(10000))...")
     
     guard let lineData = line.data(using: .utf8) else {
       logger?.error("Could not convert line to data: \(line.prefix(50))...")
@@ -541,7 +561,7 @@ public class ClaudeCodeClient: ClaudeCode {
         
       case "result":
         let resultMessage = try decoder.decode(ResultMessage.self, from: lineData)
-        logger?.info("Received result message: cost=\(resultMessage.costUsd), turns=\(resultMessage.numTurns)")
+        logger?.info("Received result message: cost=\(resultMessage.totalCostUsd), turns=\(resultMessage.numTurns)")
         subject.send(.result(resultMessage))
         
       default:
@@ -573,7 +593,8 @@ public class ClaudeCodeClient: ClaudeCode {
         subject.send(.initSystem(initMessage))
       } else {
         let resultMessage = try decoder.decode(ResultMessage.self, from: lineData)
-        logger?.info("Received result message: cost=\(resultMessage.costUsd), turns=\(resultMessage.numTurns)")
+        let log = "Received result message: cost=\(resultMessage.totalCostUsd), turns=\(resultMessage.numTurns)"
+        logger?.info("\(log)")
         subject.send(.result(resultMessage))
       }
     } catch {
@@ -610,7 +631,7 @@ public class ClaudeCodeClient: ClaudeCode {
     }
     
     if let lineString = String(data: lineData, encoding: .utf8) {
-      logger?.error("Error on line: \(lineString.prefix(200))...")
+      logger?.error("Error on line: \(lineString.prefix(10000))...")
     }
     logger?.error("Error details: \(error)")
   }
