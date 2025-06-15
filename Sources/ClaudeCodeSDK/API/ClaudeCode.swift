@@ -11,6 +11,11 @@ import Foundation
 /// Documentation: https://docs.anthropic.com/en/docs/claude-code/sdk
 public protocol ClaudeCode {
   
+  /// Configuration settings for the Claude Code client.
+  /// Controls command execution, environment variables, and debug options.
+  /// Can be modified at runtime to adjust client behavior.
+  var configuration: ClaudeCodeConfiguration { get set }
+  
   /// Runs Claude Code using stdin as input (for pipe functionality)
   /// - Parameters:
   ///   - stdinContent: The content to pipe to Claude Code's stdin
