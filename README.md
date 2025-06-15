@@ -125,6 +125,28 @@ let resumeResult = try await client.resumeConversation(
 )
 ```
 
+### Configuration
+
+Configure the client's runtime behavior:
+
+```swift
+// Create a custom configuration
+var configuration = ClaudeCodeConfiguration(
+    command: "claude",                    // Command to execute (default: "claude")
+    workingDirectory: "/path/to/project", // Set working directory
+    environment: ["API_KEY": "value"],    // Additional environment variables
+    enableDebugLogging: true,             // Enable debug logs
+    additionalPaths: ["/custom/bin"]      // Additional PATH directories
+)
+
+// Initialize client with custom configuration
+let client = ClaudeCodeClient(configuration: configuration)
+
+// Or modify configuration at runtime
+client.configuration.enableDebugLogging = false
+client.configuration.workingDirectory = "/new/path"
+```
+
 ### Customization Options
 
 Fine-tune Claude Code's behavior:
