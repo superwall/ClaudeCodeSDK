@@ -33,6 +33,15 @@ public class ChatViewModel {
   /// Error state
   public var error: Error?
   
+  /// Sessions list
+  var sessions: [SessionInfo] = []
+  
+  /// MCP configuration enabled
+  var isMCPEnabled: Bool = false
+  
+  /// MCP config path
+  var mcpConfigPath: String = ""
+  
   
   // MARK: - Initialization
   
@@ -99,12 +108,47 @@ public class ChatViewModel {
     isLoading = false
   }
   
+  /// Lists all available sessions
+  public func listSessions() {
+    Task {
+      do {
+        let fetchedSessions = try await claudeClient.listSessions()
+        await MainActor.run {
+          self.sessions = fetchedSessions
+          logger.info("Fetched \(fetchedSessions.count) sessions")
+        }
+      } catch {
+        await MainActor.run {
+          self.error = error
+          logger.error("Failed to list sessions: \(error)")
+        }
+      }
+    }
+  }
+  
   // MARK: - Private Methods
   
   private func startNewConversation(prompt: String, messageId: UUID) async throws {
     var options = ClaudeCodeOptions()
     options.allowedTools = allowedTools
     options.verbose = true
+    
+    // Add MCP config if enabled
+    if self.isMCPEnabled && !self.mcpConfigPath.isEmpty {
+      options.mcpConfigPath = self.mcpConfigPath
+      // Add MCP tools to allowed tools if using MCP
+      var updatedAllowedTools = self.allowedTools
+      
+      // Generate MCP tool patterns from the configuration file
+      let mcpToolPatterns = MCPToolFormatter.generateAllowedToolPatterns(fromConfigPath: self.mcpConfigPath)
+      updatedAllowedTools.append(contentsOf: mcpToolPatterns)
+      
+      options.allowedTools = updatedAllowedTools
+      
+      self.logger.info("MCP enabled with config: \(self.mcpConfigPath)")
+      self.logger.info("MCP servers found: \(MCPToolFormatter.extractServerNames(fromConfigPath: self.mcpConfigPath))")
+      self.logger.info("Allowed tools: \(updatedAllowedTools)")
+    }
     
     let result = try await claudeClient.runSinglePrompt(
       prompt: prompt,
@@ -119,6 +163,19 @@ public class ChatViewModel {
     var options = ClaudeCodeOptions()
     options.allowedTools = allowedTools
     options.verbose = true
+    
+    // Add MCP config if enabled
+    if isMCPEnabled && !mcpConfigPath.isEmpty {
+      options.mcpConfigPath = mcpConfigPath
+      // Add MCP tools to allowed tools if using MCP
+      var updatedAllowedTools = allowedTools
+      
+      // Generate MCP tool patterns from the configuration file
+      let mcpToolPatterns = MCPToolFormatter.generateAllowedToolPatterns(fromConfigPath: mcpConfigPath)
+      updatedAllowedTools.append(contentsOf: mcpToolPatterns)
+      
+      options.allowedTools = updatedAllowedTools
+    }
     
     let result = try await claudeClient.resumeConversation(
       sessionId: sessionId,
@@ -158,12 +215,12 @@ public class ChatViewModel {
               
               switch chunk {
               case .initSystem(let initMessage):
-    
+                
                 if currentSessionId == nil {  // Only update if not already in a conversation
-                    self.currentSessionId = initMessage.sessionId
-                    logger.debug("Started new session: \(initMessage.sessionId)")
+                  self.currentSessionId = initMessage.sessionId
+                  logger.debug("Started new session: \(initMessage.sessionId)")
                 } else {
-                    logger.debug("Continuing with new session ID: \(initMessage.sessionId)")
+                  logger.debug("Continuing with new session ID: \(initMessage.sessionId)")
                 }
                 
               case .assistant(let message):
@@ -365,3 +422,4 @@ extension ContentItem {
     return result
   }
 }
+

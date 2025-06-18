@@ -11,7 +11,7 @@ import Foundation
 // MARK: - ClaudeCodeResult
 
 /// Represents the different types of results that can be returned by Claude Code.
-public enum ClaudeCodeResult {
+@frozen public enum ClaudeCodeResult {
   /// Plain text result
   case text(String)
   

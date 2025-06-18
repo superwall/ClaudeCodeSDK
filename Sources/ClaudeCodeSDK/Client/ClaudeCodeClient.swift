@@ -7,7 +7,7 @@ import Foundation
 import os.log
 
 /// Concrete implementation of ClaudeCodeSDK that uses the Claude Code CLI
-public class ClaudeCodeClient: ClaudeCode {
+public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
   private var task: Process?
   private var cancellables = Set<AnyCancellable>()
   private var logger: Logger?
@@ -81,6 +81,11 @@ public class ClaudeCodeClient: ClaudeCode {
       opts.verbose = true
     }
     
+    // Use cwd from options if not set, fallback to configuration workingDirectory
+    if opts.cwd == nil, let workingDir = configuration.workingDirectory {
+      opts.cwd = workingDir
+    }
+    
     let args = opts.toCommandArgs()
     let argsString = args.joined(separator: " ")
     let commandString = "\(configuration.command) \(argsString)"
@@ -88,7 +93,9 @@ public class ClaudeCodeClient: ClaudeCode {
     return try await executeClaudeCommand(
       command: commandString,
       outputFormat: outputFormat,
-      stdinContent: stdinContent
+      stdinContent: stdinContent,
+      abortController: opts.abortController,
+      timeout: opts.timeout
     )
   }
   
@@ -105,6 +112,11 @@ public class ClaudeCodeClient: ClaudeCode {
       opts.verbose = true
     }
     
+    // Use cwd from options if not set, fallback to configuration workingDirectory
+    if opts.cwd == nil, let workingDir = configuration.workingDirectory {
+      opts.cwd = workingDir
+    }
+    
     var args = opts.toCommandArgs()
     args.append(outputFormat.commandArgument)
     
@@ -115,7 +127,9 @@ public class ClaudeCodeClient: ClaudeCode {
     return try await executeClaudeCommand(
       command: commandString,
       outputFormat: outputFormat,
-      stdinContent: prompt
+      stdinContent: prompt,
+      abortController: opts.abortController,
+      timeout: opts.timeout
     )
   }
   
@@ -132,6 +146,11 @@ public class ClaudeCodeClient: ClaudeCode {
       opts.verbose = true
     }
     
+    // Use cwd from options if not set, fallback to configuration workingDirectory
+    if opts.cwd == nil, let workingDir = configuration.workingDirectory {
+      opts.cwd = workingDir
+    }
+    
     var args = opts.toCommandArgs()
     args.append("--continue")
     args.append(outputFormat.commandArgument)
@@ -143,7 +162,9 @@ public class ClaudeCodeClient: ClaudeCode {
     return try await executeClaudeCommand(
       command: commandString,
       outputFormat: outputFormat,
-      stdinContent: prompt
+      stdinContent: prompt,
+      abortController: opts.abortController,
+      timeout: opts.timeout
     )
   }
   
@@ -161,6 +182,11 @@ public class ClaudeCodeClient: ClaudeCode {
       opts.verbose = true
     }
     
+    // Use cwd from options if not set, fallback to configuration workingDirectory
+    if opts.cwd == nil, let workingDir = configuration.workingDirectory {
+      opts.cwd = workingDir
+    }
+    
     var args = opts.toCommandArgs()
     args.append("--resume")
     args.append(sessionId)
@@ -173,10 +199,11 @@ public class ClaudeCodeClient: ClaudeCode {
     return try await executeClaudeCommand(
       command: commandString,
       outputFormat: outputFormat,
-      stdinContent: prompt
+      stdinContent: prompt,
+      abortController: opts.abortController,
+      timeout: opts.timeout
     )
   }
-  
   
   public func listSessions() async throws -> [SessionInfo] {
     let commandString = "\(configuration.command) logs --output-format json"
@@ -204,7 +231,7 @@ public class ClaudeCodeClient: ClaudeCode {
         throw ClaudeCodeError.invalidOutput("Could not decode output as UTF-8")
       }
       
-      logger?.debug("Received session list output: \(output.prefix(100))...")
+      logger?.debug("Received session list output: \(output.prefix(10000))...")
       
       do {
         let sessions = try decoder.decode([SessionInfo].self, from: outputData)
@@ -233,7 +260,9 @@ public class ClaudeCodeClient: ClaudeCode {
   private func executeClaudeCommand(
     command: String,
     outputFormat: ClaudeCodeOutputFormat,
-    stdinContent: String? = nil
+    stdinContent: String? = nil,
+    abortController: AbortController? = nil,
+    timeout: TimeInterval? = nil
   ) async throws -> ClaudeCodeResult {
     logger?.info("Executing command: \(command)")
     
@@ -258,18 +287,54 @@ public class ClaudeCodeClient: ClaudeCode {
     // Store for cancellation
     self.task = process
     
+    // Set up abort controller handling
+    if let abortController = abortController {
+      abortController.signal.onAbort { [weak self] in
+        self?.task?.terminate()
+      }
+    }
+    
+    // Set up timeout handling
+    var timeoutTask: Task<Void, Never>?
+    if let timeout = timeout {
+      timeoutTask = Task {
+        try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+        if !Task.isCancelled && process.isRunning {
+          logger?.warning("Process timed out after \(timeout) seconds")
+          process.terminate()
+        }
+      }
+    }
+    
     do {
       // Handle stream-json differently
       if outputFormat == .streamJson {
-        return try await handleStreamJsonOutput(process: process, outputPipe: outputPipe, errorPipe: errorPipe)
+        let result = try await handleStreamJsonOutput(
+          process: process,
+          outputPipe: outputPipe,
+          errorPipe: errorPipe,
+          abortController: abortController,
+          timeout: timeout
+        )
+        timeoutTask?.cancel()
+        return result
       } else {
         // For text and json formats, run synchronously
         try process.run()
         process.waitUntilExit()
         
+        // Cancel timeout task
+        timeoutTask?.cancel()
+        
         if process.terminationStatus != 0 {
           let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
           let errorString = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+          
+          // Check if it was a timeout
+          if let timeout = timeout,
+             errorString.isEmpty && !process.isRunning {
+            throw ClaudeCodeError.timeout(timeout)
+          }
           
           if errorString.contains("No such file or directory") ||
               errorString.contains("command not found") {
@@ -320,7 +385,9 @@ public class ClaudeCodeClient: ClaudeCode {
   private func handleStreamJsonOutput(
     process: Process,
     outputPipe: Pipe,
-    errorPipe: Pipe
+    errorPipe: Pipe,
+    abortController: AbortController? = nil,
+    timeout: TimeInterval? = nil
   ) async throws -> ClaudeCodeResult {
     // Create a publisher for streaming JSON
     let subject = PassthroughSubject<ResponseChunk, Error>()

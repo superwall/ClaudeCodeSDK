@@ -8,9 +8,18 @@
 import Foundation
 
 /// Information about a Claude Code session
-public struct SessionInfo: Codable {
-  public let sessionId: String
-  public let createdAt: Date
-  public let lastUpdatedAt: Date
-  public let title: String?
+public struct SessionInfo: Codable, Identifiable {
+  public let id: String
+  public let created: String?
+  public let lastActive: String?
+  public let totalCostUsd: Double?
+  public let project: String?
+  
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case created
+    case lastActive = "last_active"
+    case totalCostUsd = "total_cost_usd"
+    case project
+  }
 }

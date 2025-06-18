@@ -22,8 +22,8 @@ public struct InitSystemMessage: Codable {
 
 /// Represents system message subtypes
 public enum SystemSubtype: String, Codable {
-    case `init`
-    case success
-    case errorMaxTurns = "error_max_turns"
-    // Add other error types as needed
+  case `init`
+  case success
+  case errorMaxTurns = "error_max_turns"
+  // Add other error types as needed
 }

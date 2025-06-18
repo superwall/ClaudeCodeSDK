@@ -14,12 +14,33 @@ struct ChatView: View {
   @State var viewModel = ChatViewModel(claudeClient: ClaudeCodeClient(debug: true))
   @State private var messageText: String = ""
   @FocusState private var isTextFieldFocused: Bool
+  @State private var showingSessions = false
+  @State private var showingMCPConfig = false
   
   var body: some View {
     VStack {
       // Top button bar
       HStack {
+        // List sessions button
+        Button(action: {
+          viewModel.listSessions()
+          showingSessions = true
+        }) {
+          Image(systemName: "list.bullet.rectangle")
+            .font(.title2)
+        }
+        
+        // MCP Config button
+        Button(action: {
+          showingMCPConfig = true
+        }) {
+          Image(systemName: "gearshape")
+            .font(.title2)
+            .foregroundColor(viewModel.isMCPEnabled ? .green : .primary)
+        }
+        
         Spacer()
+        
         Button(action: {
           clearChat()
         }) {
@@ -100,6 +121,18 @@ struct ChatView: View {
       }
     }
     .navigationTitle("Claude Code Chat")
+    .sheet(isPresented: $showingSessions) {
+      SessionsListView(sessions: viewModel.sessions, isPresented: $showingSessions)
+        .frame(minWidth: 500, minHeight: 500)
+    }
+    .sheet(isPresented: $showingMCPConfig) {
+      MCPConfigView(
+        isMCPEnabled: $viewModel.isMCPEnabled,
+        mcpConfigPath: $viewModel.mcpConfigPath,
+        isPresented: $showingMCPConfig
+      )
+      .frame(minWidth: 500, minHeight: 500)
+    }
   }
   
   private func sendMessage() {
