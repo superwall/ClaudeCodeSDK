@@ -18,3 +18,4 @@ public struct UserMessage: Decodable {
     public let content: [MessageResponse.Content]
   }
 }
+

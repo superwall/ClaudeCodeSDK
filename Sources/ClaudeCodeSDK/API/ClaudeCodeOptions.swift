@@ -10,40 +10,75 @@ import Foundation
 // MARK: - ClaudeCodeOptions
 
 /// Configuration options for Claude Code execution
+/// Matches the TypeScript SDK Options interface
 public struct ClaudeCodeOptions {
-  /// Run in non-interactive mode (--print/-p flag)
-  /// This should be true for all SDK operations
-  public var printMode: Bool = true
-  
-  /// Enable verbose logging
-  public var verbose: Bool = false
-  
-  /// Maximum number of turns allowed (for non-interactive mode)
-  public var maxTurns: Int?
+  /// Abort controller for cancellation support
+  public var abortController: AbortController?
   
   /// List of tools allowed for Claude to use
   public var allowedTools: [String]?
   
-  /// List of tools denied for Claude to use
-  public var disallowedTools: [String]?
-  
-  /// Tool for handling permission prompts in non-interactive mode
-  public var permissionPromptTool: String?
-  
-  /// Custom system prompt
-  public var systemPrompt: String?
-  
   /// Text to append to system prompt
   public var appendSystemPrompt: String?
   
+  /// Custom system prompt
+  public var customSystemPrompt: String?
+  
+  /// Working directory (cwd)
+  public var cwd: String?
+  
+  /// List of tools denied for Claude to use
+  public var disallowedTools: [String]?
+  
+  /// JavaScript runtime executable type
+  public var executable: ExecutableType?
+  
+  /// Arguments for the executable
+  public var executableArgs: [String]?
+  
+  /// Maximum thinking tokens
+  public var maxThinkingTokens: Int?
+  
+  /// Maximum number of turns allowed
+  public var maxTurns: Int?
+  
+  /// MCP server configurations
+  public var mcpServers: [String: McpServerConfiguration]?
+  
+  /// Path to Claude Code executable
+  public var pathToClaudeCodeExecutable: String?
+  
+  /// Permission mode for operations
+  public var permissionMode: PermissionMode?
+  
+  /// Tool for handling permission prompts in non-interactive mode
+  public var permissionPromptToolName: String?
+  
+  /// Continue flag for conversation continuation
+  public var `continue`: Bool?
+  
+  /// Resume session ID
+  public var resume: String?
+  
+  /// Model to use
+  public var model: String?
+  
+  /// Timeout in seconds for command execution
+  public var timeout: TimeInterval?
+  
   /// Path to MCP configuration file
+  /// Alternative to mcpServers for file-based configuration
   public var mcpConfigPath: String?
   
-  /// Working directory for file operations
-  public var workingDirectory: String?
+  // Internal properties maintained for compatibility
+  /// Run in non-interactive mode (--print/-p flag)
+  internal var printMode: Bool = true
   
-  public init(printMode: Bool = true) {
-    self.printMode = printMode
+  /// Enable verbose logging
+  public var verbose: Bool = false
+  
+  public init() {
+    // Default initialization
   }
   
   /// Convert options to command line arguments
@@ -64,24 +99,33 @@ public struct ClaudeCodeOptions {
       args.append("\(maxTurns)")
     }
     
+    if let maxThinkingTokens = maxThinkingTokens {
+      args.append("--max-thinking-tokens")
+      args.append("\(maxThinkingTokens)")
+    }
+    
     if let allowedTools = allowedTools, !allowedTools.isEmpty {
       args.append("--allowedTools")
-      args.append(allowedTools.joined(separator: ","))
+      // Escape the joined string in quotes to prevent shell expansion
+      let toolsList = allowedTools.joined(separator: ",")
+      args.append("\"\(toolsList)\"")
     }
     
     if let disallowedTools = disallowedTools, !disallowedTools.isEmpty {
       args.append("--disallowedTools")
-      args.append(disallowedTools.joined(separator: ","))
+      // Escape the joined string in quotes to prevent shell expansion
+      let toolsList = disallowedTools.joined(separator: ",")
+      args.append("\"\(toolsList)\"")
     }
     
-    if let permissionPromptTool = permissionPromptTool {
+    if let permissionPromptToolName = permissionPromptToolName {
       args.append("--permission-prompt-tool")
-      args.append(permissionPromptTool)
+      args.append(permissionPromptToolName)
     }
     
-    if let systemPrompt = systemPrompt {
-      args.append("--system-prompt")
-      args.append(systemPrompt)
+    if let customSystemPrompt = customSystemPrompt {
+      args.append("--custom-system-prompt")
+      args.append(customSystemPrompt)
     }
     
     if let appendSystemPrompt = appendSystemPrompt {
@@ -89,9 +133,52 @@ public struct ClaudeCodeOptions {
       args.append(appendSystemPrompt)
     }
     
+    if let cwd = cwd {
+      args.append("--cwd")
+      args.append(cwd)
+    }
+    
+    if let executable = executable {
+      args.append("--executable")
+      args.append(executable.rawValue)
+    }
+    
+    if let executableArgs = executableArgs, !executableArgs.isEmpty {
+      args.append("--executable-args")
+      args.append(executableArgs.joined(separator: " "))
+    }
+    
+    if let pathToClaudeCodeExecutable = pathToClaudeCodeExecutable {
+      args.append("--path-to-claude-code-executable")
+      args.append(pathToClaudeCodeExecutable)
+    }
+    
+    if let permissionMode = permissionMode {
+      args.append("--permission-mode")
+      args.append(permissionMode.rawValue)
+    }
+    
+    if let model = model {
+      args.append("--model")
+      args.append(model)
+    }
+    
+    // Handle MCP configuration
     if let mcpConfigPath = mcpConfigPath {
+      // Use file-based configuration
       args.append("--mcp-config")
       args.append(mcpConfigPath)
+    } else if let mcpServers = mcpServers, !mcpServers.isEmpty {
+      // Create temporary file with MCP configuration
+      let tempDir = FileManager.default.temporaryDirectory
+      let configFile = tempDir.appendingPathComponent("mcp-config-\(UUID().uuidString).json")
+      
+      let config = ["mcpServers": mcpServers]
+      if let jsonData = try? JSONEncoder().encode(config),
+         (try? jsonData.write(to: configFile)) != nil {
+        args.append("--mcp-config")
+        args.append(configFile.path)
+      }
     }
     
     return args
