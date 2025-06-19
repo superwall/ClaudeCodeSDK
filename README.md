@@ -4,7 +4,7 @@
 
 ## ✨ What's New
 
-* **Full TypeScript SDK API Parity** - All options and features from the TypeScript SDK are now available
+* **Based on TypeScript SDK** - Key options and features from the TypeScript SDK with Swift-specific enhancements
 * **Enhanced Error Handling** - Detailed error types with retry hints and classification
 * **Built-in Retry Logic** - Automatic retry with exponential backoff for transient failures
 * **Rate Limiting** - Token bucket rate limiter to respect API limits
