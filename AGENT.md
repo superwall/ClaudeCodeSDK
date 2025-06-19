@@ -117,11 +117,6 @@ Major improvements to SDK functionality including enhanced error handling, MCP s
         <example>options.verbose = true</example>
       </option>
       
-      <option name="executableArgs" type="[String]">
-        <description>Arguments for the JavaScript runtime executable</description>
-        <example>options.executableArgs = ["--no-warnings"]</example>
-      </option>
-      
       <option name="permissionPromptToolName" type="String">
         <description>Tool for handling permission prompts in non-interactive mode</description>
         <example>options.permissionPromptToolName = "mcp__auth__prompt"</example>
@@ -226,7 +221,6 @@ Major improvements to SDK functionality including enhanced error handling, MCP s
   <change name="ClaudeCodeOptions-Properties">
     <added>
       - abortController: AbortController?
-      - executableArgs: [String]?
       - timeout: TimeInterval?
       - mcpServers: [String: McpServerConfiguration]?
       - mcpConfigPath: String?
@@ -246,7 +240,6 @@ Major improvements to SDK functionality including enhanced error handling, MCP s
       - McpServerConfiguration: For MCP server setup
       - ApiKeySource: Enum for API key sources
       - ConfigScope: Enum for configuration scopes
-      - ExecutableType: Enum for JS runtime types
       - PermissionMode: Enum for permission modes
       - RateLimiter: For rate limiting logic
       - RetryPolicy: For retry configuration
