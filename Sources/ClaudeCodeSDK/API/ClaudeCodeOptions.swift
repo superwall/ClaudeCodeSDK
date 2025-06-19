@@ -24,17 +24,8 @@ public struct ClaudeCodeOptions {
   /// Custom system prompt
   public var customSystemPrompt: String?
   
-  /// Working directory (cwd)
-  public var cwd: String?
-  
   /// List of tools denied for Claude to use
   public var disallowedTools: [String]?
-  
-  /// JavaScript runtime executable type
-  public var executable: ExecutableType?
-  
-  /// Arguments for the executable
-  public var executableArgs: [String]?
   
   /// Maximum thinking tokens
   public var maxThinkingTokens: Int?
@@ -44,9 +35,6 @@ public struct ClaudeCodeOptions {
   
   /// MCP server configurations
   public var mcpServers: [String: McpServerConfiguration]?
-  
-  /// Path to Claude Code executable
-  public var pathToClaudeCodeExecutable: String?
   
   /// Permission mode for operations
   public var permissionMode: PermissionMode?
@@ -131,26 +119,6 @@ public struct ClaudeCodeOptions {
     if let appendSystemPrompt = appendSystemPrompt {
       args.append("--append-system-prompt")
       args.append(appendSystemPrompt)
-    }
-    
-    if let cwd = cwd {
-      args.append("--cwd")
-      args.append(cwd)
-    }
-    
-    if let executable = executable {
-      args.append("--executable")
-      args.append(executable.rawValue)
-    }
-    
-    if let executableArgs = executableArgs, !executableArgs.isEmpty {
-      args.append("--executable-args")
-      args.append(executableArgs.joined(separator: " "))
-    }
-    
-    if let pathToClaudeCodeExecutable = pathToClaudeCodeExecutable {
-      args.append("--path-to-claude-code-executable")
-      args.append(pathToClaudeCodeExecutable)
     }
     
     if let permissionMode = permissionMode {

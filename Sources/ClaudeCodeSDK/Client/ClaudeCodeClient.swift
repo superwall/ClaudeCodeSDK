@@ -81,10 +81,6 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
       opts.verbose = true
     }
     
-    // Use cwd from options if not set, fallback to configuration workingDirectory
-    if opts.cwd == nil, let workingDir = configuration.workingDirectory {
-      opts.cwd = workingDir
-    }
     
     let args = opts.toCommandArgs()
     let argsString = args.joined(separator: " ")
@@ -112,10 +108,6 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
       opts.verbose = true
     }
     
-    // Use cwd from options if not set, fallback to configuration workingDirectory
-    if opts.cwd == nil, let workingDir = configuration.workingDirectory {
-      opts.cwd = workingDir
-    }
     
     var args = opts.toCommandArgs()
     args.append(outputFormat.commandArgument)
@@ -146,10 +138,6 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
       opts.verbose = true
     }
     
-    // Use cwd from options if not set, fallback to configuration workingDirectory
-    if opts.cwd == nil, let workingDir = configuration.workingDirectory {
-      opts.cwd = workingDir
-    }
     
     var args = opts.toCommandArgs()
     args.append("--continue")
@@ -182,10 +170,6 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
       opts.verbose = true
     }
     
-    // Use cwd from options if not set, fallback to configuration workingDirectory
-    if opts.cwd == nil, let workingDir = configuration.workingDirectory {
-      opts.cwd = workingDir
-    }
     
     var args = opts.toCommandArgs()
     args.append("--resume")

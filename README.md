@@ -170,7 +170,6 @@ options.appendSystemPrompt = "After writing code, add comprehensive comments."
 options.timeout = 300 // 5 minute timeout
 options.model = "claude-3-sonnet-20240229"
 options.permissionMode = .acceptEdits
-options.executable = .node // or .bun, .deno
 options.maxThinkingTokens = 10000
 
 // Tool configuration
@@ -419,7 +418,6 @@ The SDK is built with a protocol-based architecture for maximum flexibility:
 * **`ApiKeySource`**: Source of API key (user/project/org/temporary)
 * **`ConfigScope`**: Configuration scope levels (local/user/project)
 * **`PermissionMode`**: Permission handling modes (default/acceptEdits/bypassPermissions/plan)
-* **`ExecutableType`**: JavaScript runtime types (node/bun/deno)
 * **`McpServerConfig`**: MCP server configurations (stdio/sse)
 
 ### Error Handling
