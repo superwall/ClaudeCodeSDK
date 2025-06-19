@@ -4,7 +4,7 @@ This document provides a comprehensive guide for migrating between versions of t
 
 ## Version History & Migration Instructions
 
-### Version: Post-Improvements (June 18, 2025)
+### Version: Post-Improvements (June 18, 2025) - Commit: a8abf5a
 
 <migration-guide version="post-improvements" date="2025-06-18" commit="a8abf5a">
 
