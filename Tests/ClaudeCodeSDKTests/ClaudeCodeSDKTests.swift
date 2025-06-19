@@ -1,6 +1,12 @@
 import Testing
 @testable import ClaudeCodeSDK
 
-@Test func example() async throws {
-    // Write your test here and use APIs like `#expect(...)` to check expected conditions.
-}
+// Main test file - specific tests are organized in separate files:
+// - BasicClientTests.swift
+// - OutputFormatTests.swift
+// - OptionsTests.swift
+// - ErrorHandlingTests.swift
+// - RetryLogicTests.swift
+// - RateLimitingTests.swift
+// - CancellationTests.swift
+// - MCPConfigurationTests.swift
