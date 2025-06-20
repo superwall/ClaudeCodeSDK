@@ -21,8 +21,8 @@ public struct ClaudeCodeOptions {
   /// Text to append to system prompt
   public var appendSystemPrompt: String?
   
-  /// Custom system prompt
-  public var customSystemPrompt: String?
+  /// System prompt
+  public var systemPrompt: String?
   
   /// List of tools denied for Claude to use
   public var disallowedTools: [String]?
@@ -111,9 +111,9 @@ public struct ClaudeCodeOptions {
       args.append(permissionPromptToolName)
     }
     
-    if let customSystemPrompt = customSystemPrompt {
-      args.append("--custom-system-prompt")
-      args.append(customSystemPrompt)
+    if let systemPrompt = systemPrompt {
+      args.append("--system-prompt")
+      args.append(systemPrompt)
     }
     
     if let appendSystemPrompt = appendSystemPrompt {

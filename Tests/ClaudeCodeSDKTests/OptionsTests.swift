@@ -18,7 +18,7 @@ final class OptionsTests: XCTestCase {
     XCTAssertNil(options.abortController)
     XCTAssertNil(options.allowedTools)
     XCTAssertNil(options.appendSystemPrompt)
-    XCTAssertNil(options.customSystemPrompt)
+    XCTAssertNil(options.systemPrompt)
     XCTAssertNil(options.disallowedTools)
     XCTAssertNil(options.maxThinkingTokens)
     XCTAssertNil(options.maxTurns)
@@ -38,7 +38,7 @@ final class OptionsTests: XCTestCase {
     var options = ClaudeCodeOptions()
     options.verbose = true
     options.maxTurns = 5
-    options.customSystemPrompt = "You are a senior backend engineer specializing in Swift."
+    options.systemPrompt = "You are a senior backend engineer specializing in Swift."
     options.appendSystemPrompt = "After writing code, add comprehensive comments."
     options.timeout = 300 // 5 minute timeout
     options.model = "claude-3-sonnet-20240229"
@@ -56,7 +56,7 @@ final class OptionsTests: XCTestCase {
     XCTAssertTrue(args.contains("--verbose"))
     XCTAssertTrue(args.contains("--max-turns"))
     XCTAssertTrue(args.contains("5"))
-    XCTAssertTrue(args.contains("--custom-system-prompt"))
+    XCTAssertTrue(args.contains("--system-prompt"))
     XCTAssertTrue(args.contains("You are a senior backend engineer specializing in Swift."))
     XCTAssertTrue(args.contains("--append-system-prompt"))
     XCTAssertTrue(args.contains("After writing code, add comprehensive comments."))
