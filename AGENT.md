@@ -4,6 +4,50 @@ This document provides a comprehensive guide for migrating between versions of t
 
 ## Version History & Migration Instructions
 
+### Version: SDK Alignment Update (June 19, 2025) - Commit: 8209db6
+
+<migration-guide version="sdk-alignment" date="2025-06-19" commit="8209db6">
+
+<summary>
+Aligned SDK with Claude Code CLI by renaming customSystemPrompt to systemPrompt and removing TypeScript SDK references.
+</summary>
+
+<breaking-changes>
+  <change category="options-property-rename">
+    <before>
+      ```swift
+      var options = ClaudeCodeOptions()
+      options.customSystemPrompt = "You are a senior backend engineer."
+      ```
+    </before>
+    <after>
+      ```swift
+      var options = ClaudeCodeOptions()
+      options.systemPrompt = "You are a senior backend engineer."
+      ```
+    </after>
+    <reason>Renamed to match the actual Claude Code CLI flag --system-prompt</reason>
+  </change>
+</breaking-changes>
+
+<migration-steps>
+  <step number="1">
+    <title>Update System Prompt Property</title>
+    <description>Rename any usage of customSystemPrompt to systemPrompt</description>
+    <code-change>
+      <from>options.customSystemPrompt = "Your prompt"</from>
+      <to>options.systemPrompt = "Your prompt"</to>
+    </code-change>
+  </step>
+</migration-steps>
+
+<testing-checklist>
+  <item>Verify all usages of customSystemPrompt have been updated to systemPrompt</item>
+  <item>Test that system prompts are properly passed to the CLI with --system-prompt flag</item>
+</testing-checklist>
+
+</migration-guide>
+
 ### Version: Post-Improvements (June 18, 2025) - Commit: a8abf5a
 
 <migration-guide version="post-improvements" date="2025-06-18" commit="a8abf5a">

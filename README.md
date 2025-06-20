@@ -4,7 +4,6 @@
 
 ## ✨ What's New
 
-* **Based on TypeScript SDK** - Key options and features from the TypeScript SDK with Swift-specific enhancements
 * **Enhanced Error Handling** - Detailed error types with retry hints and classification
 * **Built-in Retry Logic** - Automatic retry with exponential backoff for transient failures
 * **Rate Limiting** - Token bucket rate limiter to respect API limits
@@ -165,7 +164,7 @@ Fine-tune Claude Code's behavior with comprehensive options:
 var options = ClaudeCodeOptions()
 options.verbose = true
 options.maxTurns = 5
-options.customSystemPrompt = "You are a senior backend engineer specializing in Swift."
+options.systemPrompt = "You are a senior backend engineer specializing in Swift."
 options.appendSystemPrompt = "After writing code, add comprehensive comments."
 options.timeout = 300 // 5 minute timeout
 options.model = "claude-3-sonnet-20240229"

@@ -13,9 +13,9 @@ final class OutputFormatTests: XCTestCase {
   
   func testOutputFormatCommandArguments() {
     // Test that output formats produce correct command arguments
-    XCTAssertEqual(ClaudeCodeOutputFormat.text.commandArgument, "--text")
-    XCTAssertEqual(ClaudeCodeOutputFormat.json.commandArgument, "--json")
-    XCTAssertEqual(ClaudeCodeOutputFormat.streamJson.commandArgument, "--stream-json")
+    XCTAssertEqual(ClaudeCodeOutputFormat.text.commandArgument, "--output-format text")
+    XCTAssertEqual(ClaudeCodeOutputFormat.json.commandArgument, "--output-format json")
+    XCTAssertEqual(ClaudeCodeOutputFormat.streamJson.commandArgument, "--output-format stream-json")
   }
   
   func testResultTypeMatching() {
