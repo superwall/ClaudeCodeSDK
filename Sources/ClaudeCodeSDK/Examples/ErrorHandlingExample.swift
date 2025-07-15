@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import ClaudeCodeSDK
 
 // MARK: - Basic Error Handling
 
@@ -83,34 +82,6 @@ func retryExample() async {
         print("Success with conservative retry: \(result)")
     } catch {
         print("Failed with conservative retry: \(error)")
-    }
-}
-
-// MARK: - Rate Limiting Example
-
-func rateLimitingExample() async {
-    let baseClient = ClaudeCodeClient()
-    
-    // Wrap with rate limiter - 10 requests per minute
-    let rateLimitedClient = RateLimitedClaudeCode(
-        wrapped: baseClient,
-        requestsPerMinute: 10,
-        burstCapacity: 3 // Allow 3 requests in burst
-    )
-    
-    // Make multiple requests - they will be rate limited
-    for i in 1...15 {
-        do {
-            print("Making request \(i)...")
-            let result = try await rateLimitedClient.runSinglePrompt(
-                prompt: "Quick task \(i)",
-                outputFormat: .text,
-                options: nil
-            )
-            print("Request \(i) completed")
-        } catch {
-            print("Request \(i) failed: \(error)")
-        }
     }
 }
 
