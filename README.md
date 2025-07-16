@@ -452,6 +452,112 @@ The SDK is built with a protocol-based architecture for maximum flexibility:
 * **`AbortController`**: Cancellation support
 * **`RateLimitedClaudeCode`**: Rate-limited wrapper
 
+## Troubleshooting
+
+### npm/node not found when using nvm
+
+**Problem**: When running ClaudeCodeSDK from an app, you get errors like "npm is not installed" even though npm works fine in your terminal.
+
+**Cause**: When ClaudeCodeSDK launches subprocesses, it uses a shell environment that doesn't automatically source your shell configuration files. This means nvm's PATH modifications aren't loaded.
+
+**Solution**: Add nvm paths to your configuration:
+
+```swift
+// Find your nvm version
+// Run in terminal: ls ~/.nvm/versions/node/
+
+var config = ClaudeCodeConfiguration.default
+config.additionalPaths = [
+    "/usr/local/bin",
+    "/opt/homebrew/bin",
+    "/usr/bin",
+    "\(NSHomeDirectory())/.nvm/versions/node/v22.11.0/bin", // Replace with your version
+]
+```
+
+**Better Solution**: Use dynamic nvm detection (see NvmPathDetector utility below).
+
+### Command not found errors
+
+Add the tool's directory to `additionalPaths`:
+
+```swift
+// For Homebrew on Apple Silicon
+config.additionalPaths.append("/opt/homebrew/bin")
+
+// For Homebrew on Intel Macs
+config.additionalPaths.append("/usr/local/bin")
+
+// For custom tools
+config.additionalPaths.append("/path/to/your/tools/bin")
+```
+
+### Environment variables not available
+
+Pass required environment variables explicitly:
+
+```swift
+var config = ClaudeCodeConfiguration.default
+config.environment = [
+    "API_KEY": "your-key",
+    "DATABASE_URL": "your-url",
+    "NODE_ENV": "production"
+]
+```
+
+### Working directory issues
+
+Set the working directory explicitly:
+
+```swift
+var config = ClaudeCodeConfiguration.default
+config.workingDirectory = "/path/to/your/project"
+```
+
+### Debugging tips
+
+Enable debug logging to see what's happening:
+
+```swift
+var config = ClaudeCodeConfiguration.default
+config.enableDebugLogging = true
+```
+
+This will show:
+- The exact command being executed
+- Environment variables being used
+- PATH configuration
+- Error messages from the subprocess
+
+### Testing your configuration
+
+Validate your setup before running Claude Code:
+
+```swift
+// Use the validateCommand method
+let isValid = try await client.validateCommand("npm")
+if !isValid {
+    print("npm not found in PATH")
+}
+```
+
+## Utilities
+
+### NvmPathDetector
+
+The SDK includes a utility to automatically detect nvm paths:
+
+```swift
+// Automatic nvm detection
+var config = ClaudeCodeConfiguration.default
+if let nvmPath = NvmPathDetector.detectNvmPath() {
+    config.additionalPaths.append(nvmPath)
+}
+
+// Or use the convenience initializer
+let config = ClaudeCodeConfiguration.withNvmSupport()
+```
+
 ## License
 
 ClaudeCodeSDK is available under the MIT license. See the `LICENSE` file for more info.

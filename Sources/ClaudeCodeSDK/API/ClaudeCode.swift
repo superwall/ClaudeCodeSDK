@@ -72,4 +72,9 @@ public protocol ClaudeCode {
   
   /// Cancels any current operations
   func cancel()
+  
+  /// Validates if a command is available in the configured PATH
+  /// - Parameter command: The command to check (e.g., "npm", "node")
+  /// - Returns: true if the command is found in PATH, false otherwise
+  func validateCommand(_ command: String) async throws -> Bool
 }
