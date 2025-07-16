@@ -24,6 +24,9 @@ public struct ClaudeCodeConfiguration {
   /// Additional paths to add to PATH environment variable
   public var additionalPaths: [String]
   
+  /// Optional suffix to append after the command (e.g., "--" for "airchat --")
+  public var commandSuffix: String?
+  
   /// Default configuration
   public static var `default`: ClaudeCodeConfiguration {
     ClaudeCodeConfiguration(
@@ -31,7 +34,8 @@ public struct ClaudeCodeConfiguration {
       workingDirectory: nil,
       environment: [:],
       enableDebugLogging: false,
-      additionalPaths: ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin"]
+      additionalPaths: ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin"],
+      commandSuffix: nil
     )
   }
   
@@ -40,12 +44,14 @@ public struct ClaudeCodeConfiguration {
     workingDirectory: String? = nil,
     environment: [String: String] = [:],
     enableDebugLogging: Bool = false,
-    additionalPaths: [String] = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin"]
+    additionalPaths: [String] = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin"],
+    commandSuffix: String? = nil
   ) {
     self.command = command
     self.workingDirectory = workingDirectory
     self.environment = environment
     self.enableDebugLogging = enableDebugLogging
     self.additionalPaths = additionalPaths
+    self.commandSuffix = commandSuffix
   }
 }
