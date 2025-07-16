@@ -39,7 +39,7 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
   private func configuredProcess(for command: String) -> Process {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-    process.arguments = ["-c", command]
+    process.arguments = ["-l", "-c", command]
     
     if let workingDirectory = configuration.workingDirectory {
       process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
