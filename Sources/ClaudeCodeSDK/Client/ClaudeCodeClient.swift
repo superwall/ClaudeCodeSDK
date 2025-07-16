@@ -246,6 +246,58 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
     cancellables.removeAll()
   }
   
+  public func validateCommand(_ command: String) async throws -> Bool {
+    // Use 'which' command to check if the command exists in PATH
+    let checkCommand = "which \(command)"
+    
+    logger?.info("Validating command: \(command)")
+    
+    let process = configuredProcess(for: checkCommand)
+    
+    let outputPipe = Pipe()
+    let errorPipe = Pipe()
+    process.standardOutput = outputPipe
+    process.standardError = errorPipe
+    
+    do {
+      try process.run()
+      process.waitUntilExit()
+      
+      // 'which' returns 0 if command is found, non-zero otherwise
+      let isValid = process.terminationStatus == 0
+      
+      if isValid {
+        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        if let path = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+          logger?.info("Command '\(command)' found at: \(path)")
+        }
+      } else {
+        logger?.warning("Command '\(command)' not found in PATH")
+        
+        // Log current PATH for debugging
+        if configuration.enableDebugLogging {
+          let pathCheckCommand = "echo $PATH"
+          let pathProcess = configuredProcess(for: pathCheckCommand)
+          let pathPipe = Pipe()
+          pathProcess.standardOutput = pathPipe
+          
+          try pathProcess.run()
+          pathProcess.waitUntilExit()
+          
+          let pathData = pathPipe.fileHandleForReading.readDataToEndOfFile()
+          if let currentPath = String(data: pathData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+            logger?.debug("Current PATH: \(currentPath)")
+          }
+        }
+      }
+      
+      return isValid
+    } catch {
+      logger?.error("Error validating command '\(command)': \(error.localizedDescription)")
+      throw ClaudeCodeError.executionFailed("Failed to validate command: \(error.localizedDescription)")
+    }
+  }
+  
   private func executeClaudeCommand(
     command: String,
     outputFormat: ClaudeCodeOutputFormat,

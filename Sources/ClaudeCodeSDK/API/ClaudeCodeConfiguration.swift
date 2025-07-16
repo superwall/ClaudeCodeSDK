@@ -34,7 +34,14 @@ public struct ClaudeCodeConfiguration {
       workingDirectory: nil,
       environment: [:],
       enableDebugLogging: false,
-      additionalPaths: ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin"],
+      additionalPaths: [
+        "/usr/local/bin",     // Homebrew on Intel Macs, common Unix tools
+        "/opt/homebrew/bin",  // Homebrew on Apple Silicon
+        "/usr/bin",           // System binaries
+        "/bin",               // Core system binaries
+        "/usr/sbin",          // System administration binaries
+        "/sbin"               // Essential system binaries
+      ],
       commandSuffix: nil
     )
   }
@@ -44,7 +51,14 @@ public struct ClaudeCodeConfiguration {
     workingDirectory: String? = nil,
     environment: [String: String] = [:],
     enableDebugLogging: Bool = false,
-    additionalPaths: [String] = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin"],
+    additionalPaths: [String] = [
+      "/usr/local/bin",     // Homebrew on Intel Macs, common Unix tools
+      "/opt/homebrew/bin",  // Homebrew on Apple Silicon
+      "/usr/bin",           // System binaries
+      "/bin",               // Core system binaries
+      "/usr/sbin",          // System administration binaries
+      "/sbin"               // Essential system binaries
+    ],
     commandSuffix: String? = nil
   ) {
     self.command = command
