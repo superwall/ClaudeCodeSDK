@@ -70,6 +70,27 @@ Task {
 
 ## Key Features
 
+### Command Suffix Support
+
+The SDK supports adding a suffix after the command, which is useful when the command requires specific argument ordering:
+
+```swift
+// Configure with a command suffix
+var config = ClaudeCodeConfiguration.default
+config.commandSuffix = "--"  // Adds "--" after "claude"
+
+let client = ClaudeCodeClient(configuration: config)
+
+// This generates commands like: "claude -- -p --verbose --max-turns 50"
+let result = try await client.runSinglePrompt(
+    prompt: "Write a sorting algorithm",
+    outputFormat: .text,
+    options: ClaudeCodeOptions()
+)
+```
+
+This is particularly useful when your command executable requires specific argument positioning or when using command wrappers that need arguments separated with `--`.
+
 ### Different Output Formats
 
 Choose from three output formats depending on your needs:
@@ -145,7 +166,8 @@ var configuration = ClaudeCodeConfiguration(
     workingDirectory: "/path/to/project", // Set working directory
     environment: ["API_KEY": "value"],    // Additional environment variables
     enableDebugLogging: true,             // Enable debug logs
-    additionalPaths: ["/custom/bin"]      // Additional PATH directories
+    additionalPaths: ["/custom/bin"],     // Additional PATH directories
+    commandSuffix: "--"                   // Optional suffix after command (e.g., "claude --")
 )
 
 // Initialize client with custom configuration
@@ -154,6 +176,7 @@ let client = ClaudeCodeClient(configuration: configuration)
 // Or modify configuration at runtime
 client.configuration.enableDebugLogging = false
 client.configuration.workingDirectory = "/new/path"
+client.configuration.commandSuffix = "--"  // Add suffix for commands like "claude -- -p --verbose"
 ```
 
 ### Customization Options

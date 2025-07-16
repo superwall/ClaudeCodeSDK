@@ -84,7 +84,8 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
     
     let args = opts.toCommandArgs()
     let argsString = args.joined(separator: " ")
-    let commandString = "\(configuration.command) \(argsString)"
+    let suffix = configuration.commandSuffix.map { " \($0)" } ?? ""
+    let commandString = "\(configuration.command)\(suffix) \(argsString)"
     
     return try await executeClaudeCommand(
       command: commandString,
@@ -113,7 +114,8 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
     args.append(outputFormat.commandArgument)
     
     // Do NOT append the prompt as a quoted argument!
-    let commandString = "\(configuration.command) \(args.joined(separator: " "))"
+    let suffix = configuration.commandSuffix.map { " \($0)" } ?? ""
+    let commandString = "\(configuration.command)\(suffix) \(args.joined(separator: " "))"
     
     // Always send the prompt via stdin
     return try await executeClaudeCommand(
@@ -144,7 +146,8 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
     args.append(outputFormat.commandArgument)
     
     // Construct the full command (no prompt appended!)
-    let commandString = "\(configuration.command) \(args.joined(separator: " "))"
+    let suffix = configuration.commandSuffix.map { " \($0)" } ?? ""
+    let commandString = "\(configuration.command)\(suffix) \(args.joined(separator: " "))"
     
     // Pass prompt via stdin (or nil if not provided)
     return try await executeClaudeCommand(
@@ -177,7 +180,8 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
     args.append(outputFormat.commandArgument)
     
     // Build the command without the prompt
-    let commandString = "\(configuration.command) \(args.joined(separator: " "))"
+    let suffix = configuration.commandSuffix.map { " \($0)" } ?? ""
+    let commandString = "\(configuration.command)\(suffix) \(args.joined(separator: " "))"
     
     // Use stdin for prompt
     return try await executeClaudeCommand(
@@ -190,7 +194,8 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
   }
   
   public func listSessions() async throws -> [SessionInfo] {
-    let commandString = "\(configuration.command) logs --output-format json"
+    let suffix = configuration.commandSuffix.map { " \($0)" } ?? ""
+    let commandString = "\(configuration.command)\(suffix) logs --output-format json"
     
     let process = configuredProcess(for: commandString)
     
