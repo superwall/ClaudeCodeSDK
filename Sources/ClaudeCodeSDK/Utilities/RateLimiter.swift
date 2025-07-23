@@ -219,4 +219,9 @@ public class RateLimitedClaudeCode: ClaudeCode {
   public func cancel() {
     wrapped.cancel()
   }
+  
+  public func validateCommand(_ command: String) async throws -> Bool {
+    try await rateLimiter.acquire()
+    return try await wrapped.validateCommand(command)
+  }
 }
