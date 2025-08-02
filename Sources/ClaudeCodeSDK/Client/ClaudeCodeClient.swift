@@ -83,13 +83,7 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
     
     
     let args = opts.toCommandArgs()
-    let argsString = args.map { arg in
-      // Quote arguments that contain spaces
-      if arg.contains(" ") {
-        return "\"\(arg)\""
-      }
-      return arg
-    }.joined(separator: " ")
+    let argsString = args.joined(separator: " ")
     let suffix = configuration.commandSuffix.map { " \($0)" } ?? ""
     let commandString = "\(configuration.command)\(suffix) \(argsString)"
     
@@ -121,13 +115,7 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
     
     // Do NOT append the prompt as a quoted argument!
     let suffix = configuration.commandSuffix.map { " \($0)" } ?? ""
-    let argsString = args.map { arg in
-      // Quote arguments that contain spaces
-      if arg.contains(" ") {
-        return "\"\(arg)\""
-      }
-      return arg
-    }.joined(separator: " ")
+    let argsString = args.joined(separator: " ")
     let commandString = "\(configuration.command)\(suffix) \(argsString)"
     
     // Always send the prompt via stdin
@@ -160,13 +148,7 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
     
     // Construct the full command (no prompt appended!)
     let suffix = configuration.commandSuffix.map { " \($0)" } ?? ""
-    let argsString = args.map { arg in
-      // Quote arguments that contain spaces
-      if arg.contains(" ") {
-        return "\"\(arg)\""
-      }
-      return arg
-    }.joined(separator: " ")
+    let argsString = args.joined(separator: " ")
     let commandString = "\(configuration.command)\(suffix) \(argsString)"
     
     // Pass prompt via stdin (or nil if not provided)
@@ -201,13 +183,7 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
     
     // Build the command without the prompt
     let suffix = configuration.commandSuffix.map { " \($0)" } ?? ""
-    let argsString = args.map { arg in
-      // Quote arguments that contain spaces
-      if arg.contains(" ") {
-        return "\"\(arg)\""
-      }
-      return arg
-    }.joined(separator: " ")
+    let argsString = args.joined(separator: " ")
     let commandString = "\(configuration.command)\(suffix) \(argsString)"
     
     // Use stdin for prompt
