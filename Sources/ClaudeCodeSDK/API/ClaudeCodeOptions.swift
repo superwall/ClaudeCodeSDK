@@ -113,12 +113,12 @@ public struct ClaudeCodeOptions {
     
     if let systemPrompt = systemPrompt {
       args.append("--system-prompt")
-      args.append(systemPrompt)
+      args.append("\"\(systemPrompt)\"")
     }
     
     if let appendSystemPrompt = appendSystemPrompt {
       args.append("--append-system-prompt")
-      args.append(appendSystemPrompt)
+      args.append("\"\(appendSystemPrompt)\"")
     }
     
     if let permissionMode = permissionMode {
