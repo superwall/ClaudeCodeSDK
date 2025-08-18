@@ -4,6 +4,7 @@
 
 ## ✨ What's New
 
+* **Native Session Storage** - Direct access to Claude CLI's session storage (`~/.claude/projects/`)
 * **Enhanced Error Handling** - Detailed error types with retry hints and classification
 * **Built-in Retry Logic** - Automatic retry with exponential backoff for transient failures
 * **Rate Limiting** - Token bucket rate limiter to respect API limits
@@ -406,6 +407,97 @@ Task {
 abortController.abort()
 ```
 
+### Native Session Storage
+
+Access Claude CLI's native session storage directly to read conversation history:
+
+```swift
+// Initialize the native storage
+let storage = ClaudeNativeSessionStorage()
+
+// List all projects with sessions
+let projects = try await storage.listProjects()
+print("Projects with sessions: \(projects)")
+
+// Get sessions for a specific project
+let sessions = try await storage.getSessions(for: "/Users/me/projects/myapp")
+for session in sessions {
+    print("Session: \(session.id)")
+    print("  Created: \(session.createdAt)")
+    print("  Summary: \(session.summary ?? "No summary")")
+    print("  Messages: \(session.messages.count)")
+}
+
+// Get the most recent session for a project
+if let recentSession = try await storage.getMostRecentSession(for: "/Users/me/projects/myapp") {
+    print("Most recent session: \(recentSession.id)")
+    
+    // Access the conversation messages
+    for message in recentSession.messages {
+        print("\(message.role): \(message.content)")
+    }
+}
+
+// Get all sessions across all projects
+let allSessions = try await storage.getAllSessions()
+print("Total sessions: \(allSessions.count)")
+```
+
+#### Benefits of Native Storage
+
+* **Complete Sync**: Access sessions created from both CLI and your app
+* **No Duplication**: Single source of truth for all Claude conversations
+* **Rich Metadata**: Access to git branch, working directory, timestamps, and more
+* **Conversation History**: Full access to all messages in each session
+* **Project Organization**: Sessions automatically organized by project path
+
+#### Session Storage Models
+
+```swift
+// Session information
+public struct ClaudeStoredSession {
+    let id: String                    // Session UUID
+    let projectPath: String           // Project this session belongs to
+    let createdAt: Date              // When session was created
+    let lastAccessedAt: Date         // Last activity
+    var summary: String?             // Session summary if available
+    var gitBranch: String?           // Git branch at time of creation
+    var messages: [ClaudeStoredMessage]  // All messages in session
+}
+
+// Message information
+public struct ClaudeStoredMessage {
+    let id: String                   // Message UUID
+    let parentId: String?            // Parent message for threading
+    let sessionId: String            // Session this belongs to
+    let role: MessageRole            // user/assistant/system
+    let content: String              // Message content
+    let timestamp: Date              // When message was sent
+    let cwd: String?                 // Working directory
+    let version: String?             // Claude CLI version
+}
+```
+
+#### Using Native Storage with ClaudeCodeClient
+
+You can use the native storage to resume conversations or analyze past sessions:
+
+```swift
+let storage = ClaudeNativeSessionStorage()
+let client = ClaudeCodeClient()
+
+// Find a session to resume
+if let session = try await storage.getMostRecentSession(for: projectPath) {
+    // Resume that specific session
+    let result = try await client.resumeConversation(
+        sessionId: session.id,
+        prompt: "Continue where we left off",
+        outputFormat: .text,
+        options: nil
+    )
+}
+```
+
 ## Example Project
 
 The repository includes a complete example project demonstrating how to integrate and use the SDK in a real application. You can find it in the `Example/ClaudeCodeSDKExample` directory.
@@ -435,6 +527,12 @@ The SDK is built with a protocol-based architecture for maximum flexibility:
 * **`ClaudeCodeOutputFormat`**: Output format options (text, JSON, streaming JSON)
 * **`ClaudeCodeResult`**: Result types returned by the SDK
 * **`ResponseChunk`**: Individual chunks in streaming responses
+
+### Storage Components
+* **`ClaudeNativeSessionStorage`**: Direct access to Claude CLI's native session storage
+* **`ClaudeSessionStorageProtocol`**: Protocol for session storage implementations
+* **`ClaudeStoredSession`**: Model representing a stored Claude session
+* **`ClaudeStoredMessage`**: Model representing messages within sessions
 
 ### Type System
 * **`ApiKeySource`**: Source of API key (user/project/org/temporary)
