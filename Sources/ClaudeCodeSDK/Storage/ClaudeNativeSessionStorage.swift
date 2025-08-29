@@ -186,12 +186,31 @@ public class ClaudeNativeSessionStorage: ClaudeSessionStorageProtocol {
           // Extract text content
           let content = message.content?.textContent ?? ""
           
+          // For both user and assistant messages, preserve the structured content array
+          var contentArray: [[String: Any]]? = nil
+          if case let .array(items) = message.content {
+            contentArray = items.map { item in
+              var dict: [String: Any] = ["type": item.type]
+              if let text = item.text { dict["text"] = text }
+              if let id = item.id { dict["id"] = id }
+              if let name = item.name { dict["name"] = name }
+              if let input = item.input { dict["input"] = input }
+              if let toolUseId = item.tool_use_id { dict["tool_use_id"] = toolUseId }
+              if let itemContent = item.content { dict["content"] = itemContent }
+              if let isError = item.is_error { dict["is_error"] = isError }
+              if let thinking = item.thinking { dict["thinking"] = thinking }
+              if let signature = item.signature { dict["signature"] = signature }
+              return dict
+            }
+          }
+          
           let storedMessage = ClaudeStoredMessage(
             id: uuid,
             parentId: entry.parentUuid,
             sessionId: entry.sessionId ?? sessionId,
             role: ClaudeStoredMessage.MessageRole(rawValue: role) ?? .user,
             content: content,
+            contentArray: contentArray,
             timestamp: timestamp ?? Date(),
             cwd: entry.cwd,
             version: entry.version

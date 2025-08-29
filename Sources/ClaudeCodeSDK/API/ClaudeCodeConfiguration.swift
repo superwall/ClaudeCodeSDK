@@ -40,7 +40,11 @@ public struct ClaudeCodeConfiguration {
         "/usr/bin",           // System binaries
         "/bin",               // Core system binaries
         "/usr/sbin",          // System administration binaries
-        "/sbin"               // Essential system binaries
+        "/sbin",              // Essential system binaries
+        "~/.bun/bin/claude",
+        "/.bun/bin/claude",
+        "/usr/local/bin/claude",
+        "/usr/bin/claude"
       ],
       commandSuffix: nil
     )

@@ -444,6 +444,17 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
     let decoder = self.decoder
     let logger = self.logger
     
+    // Configure error handler first
+    errorPipe.fileHandleForReading.readabilityHandler = { errorHandle in
+      let errorData = errorHandle.availableData
+      if !errorData.isEmpty {
+        if let errorString = String(data: errorData, encoding: .utf8) {
+          logger?.error("Claude stderr: \(errorString)")
+          print("Claude stderr: \(errorString)")
+        }
+      }
+    }
+    
     // Configure handlers for readability
     outputPipe.fileHandleForReading.readabilityHandler = { fileHandle in
       let data = fileHandle.availableData
@@ -542,10 +553,14 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
     
     // Start the process
     do {
+      print("Starting stream process...")
+      print("Process working dir: \(process.currentDirectoryURL?.path ?? "none")")
       try process.run()
       self.task = process
+      print("Stream process started with PID: \(process.processIdentifier)")
     } catch {
       logger?.error("Failed to start process: \(error.localizedDescription)")
+      print("Failed to start process: \(error.localizedDescription)")
       
       if (error as NSError).domain == NSPOSIXErrorDomain && (error as NSError).code == 2 {
         // No such file or directory
@@ -597,9 +612,11 @@ public final class ClaudeCodeClient: ClaudeCode, @unchecked Sendable {
   ) {
     guard !line.isEmpty else { return }
     
+    print("=== Processing JSON line: \(line.prefix(200))...")
     logger?.debug("Processing JSON line: \(line.prefix(10000))...")
     
     guard let lineData = line.data(using: .utf8) else {
+      print("ERROR: Could not convert line to data")
       logger?.error("Could not convert line to data: \(line.prefix(50))...")
       return
     }
