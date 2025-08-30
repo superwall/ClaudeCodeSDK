@@ -125,6 +125,12 @@ public struct ClaudeCodeOptions {
       args.append("--permission-mode")
       args.append(permissionMode.rawValue)
     }
+
+    if let resume = resume {
+      args.append("--resume")
+      args.append(resume)
+    }
+
     
     if let model = model {
       args.append("--model")
